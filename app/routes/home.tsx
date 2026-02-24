@@ -1,3 +1,4 @@
+import { Navbar } from "~/components/Navbar";
 import type { Route } from "./+types/home";
 
 const categories = [
@@ -41,17 +42,8 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#f6f3ef] text-stone-800">
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
-        <div>
-          <p className="text-sm tracking-[0.2em] text-stone-500">GULNATURAL</p>
-          <h1 className="text-xl font-semibold">Doğal Ahşap Mobilya</h1>
-        </div>
-        <button className="rounded-full bg-stone-900 px-5 py-2 text-sm font-medium text-white hover:bg-stone-700">
-          Etsy Mağazasına Git
-        </button>
-      </header>
-
+    <main className="min-h-screen bg-[#f6f3ef] pt-44 text-stone-800 lg:pt-48">
+      <Navbar />
       <section className="mx-auto grid w-full max-w-6xl gap-8 px-6 pb-16 pt-8 lg:grid-cols-2 lg:items-center">
         <div className="space-y-6">
           <p className="inline-block rounded-full bg-stone-200 px-4 py-2 text-xs font-semibold tracking-wide text-stone-700">
