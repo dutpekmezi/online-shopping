@@ -1,0 +1,145 @@
+.navbar {
+  border-bottom: 1px solid #e6e6e6;
+  font-family: "Inter", sans-serif;
+}
+
+.navbar__contact-row,
+.navbar__promo-row,
+.navbar__main-row,
+.navbar__breadcrumb-row {
+  width: 100%;
+}
+
+.navbar__contact-row {
+  background: #ad6734;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.navbar__contact-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.6rem 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.navbar__divider {
+  opacity: 0.8;
+}
+
+.navbar__promo-row {
+  background: #9a5829;
+  color: #fff;
+  text-align: center;
+  font-weight: 600;
+  padding: 0.45rem 1rem;
+}
+
+.navbar__main-row {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.navbar__brand {
+  min-width: 150px;
+  line-height: 1;
+  display: grid;
+  gap: 0.05rem;
+}
+
+.navbar__brand-the {
+  font-size: 0.65rem;
+  color: #9a5829;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.navbar__brand-name {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #383838;
+}
+
+.navbar__brand-name--accent {
+  color: #c8793d;
+}
+
+.navbar__menu {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+.navbar__menu-link {
+  text-decoration: none;
+  color: #2e2e2e;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.navbar__menu-link:hover {
+  color: #9a5829;
+}
+
+.navbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.navbar__icon-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0.25rem;
+}
+
+.navbar__cart-button {
+  position: relative;
+}
+
+.navbar__cart-count {
+  position: absolute;
+  right: -0.2rem;
+  top: -0.25rem;
+  background: #9a5829;
+  color: #fff;
+  border-radius: 999px;
+  min-width: 1rem;
+  height: 1rem;
+  display: grid;
+  place-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.navbar__breadcrumb-row {
+  border-top: 1px solid #eee;
+  background: #f5f5f5;
+  display: flex;
+  gap: 0.45rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  color: #646464;
+}
+
+@media (max-width: 1024px) {
+  .navbar__main-row {
+    flex-wrap: wrap;
+  }
+
+  .navbar__menu {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
