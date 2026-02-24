@@ -3,6 +3,7 @@ import type { CollectionGroup, CollectionProduct } from "~/models/home";
 
 type CollectionsSectionProps = {
   products: CollectionProduct[];
+  initialFilter?: CollectionGroup | "all";
 };
 
 const filterButtons: { label: string; value: CollectionGroup | "all" }[] = [
@@ -11,8 +12,8 @@ const filterButtons: { label: string; value: CollectionGroup | "all" }[] = [
   { label: "Living", value: "living" },
 ];
 
-export function CollectionsSection({ products }: CollectionsSectionProps) {
-  const [activeFilter, setActiveFilter] = useState<CollectionGroup | "all">("all");
+export function CollectionsSection({ products, initialFilter = "all" }: CollectionsSectionProps) {
+  const [activeFilter, setActiveFilter] = useState<CollectionGroup | "all">(initialFilter);
 
   const filteredProducts = useMemo(() => {
     if (activeFilter === "all") {
