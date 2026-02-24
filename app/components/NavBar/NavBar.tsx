@@ -1,5 +1,3 @@
-import "./NavBar.css";
-
 const topLinks = ["Shop +", "Contact Us", "Shipping Info", "Gallery", "About Us", "Compare Products"];
 
 export function NavBar() {
