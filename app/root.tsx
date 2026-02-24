@@ -6,12 +6,25 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
+import type { LinksFunction } from "react-router";
 
 import type { Route } from "./+types/root";
-import "./app.css";
-import "./styles/gul.css";
+import rootStyles from "./styles/root.css?url";
+import toastStyles from "react-toastify/dist/ReactToastify.css?url";
 
-export const links: Route.LinksFunction = () => [
+function mainNavigationLinks() {
+  return [] as ReturnType<LinksFunction>;
+}
+
+function defaultNavigationLinks() {
+  return [] as ReturnType<LinksFunction>;
+}
+
+function spinnerLinks() {
+  return [] as ReturnType<LinksFunction>;
+}
+
+export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
@@ -22,6 +35,11 @@ export const links: Route.LinksFunction = () => [
     rel: "stylesheet",
     href: "https://fonts.googleapis.com/css2?family=Assistant:wght@200..800&display=swap",
   },
+  { rel: "stylesheet", href: rootStyles },
+  { rel: "stylesheet", href: toastStyles },
+  ...mainNavigationLinks(),
+  ...defaultNavigationLinks(),
+  ...spinnerLinks(),
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
