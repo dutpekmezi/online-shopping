@@ -1,3 +1,11 @@
+import style from './NavBar.css?url';
+
+export function links() {
+    return [
+        { rel: 'stylesheet', href: style },
+    ];
+}
+
 const topLinks = ["Shop +", "Contact Us", "Shipping Info", "Gallery", "About Us", "Compare Products"];
 
 export function NavBar() {
@@ -15,9 +23,7 @@ export function NavBar() {
 
       <div className="navbar__main-row">
         <div className="navbar__brand">
-          <span className="navbar__brand-the">THE</span>
-          <span className="navbar__brand-name">LUMBER</span>
-          <span className="navbar__brand-name navbar__brand-name--accent">SHACK</span>
+          <span className="navbar__brand-name">EDACraftAtelier</span>
         </div>
 
         <nav className="navbar__menu" aria-label="Main navigation">

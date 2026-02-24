@@ -11,7 +11,7 @@
 }
 
 .navbar__contact-row {
-  background: #ad6734;
+  background: #ffffff;
   color: #fff;
   font-size: 0.9rem;
 }
@@ -30,7 +30,7 @@
 }
 
 .navbar__promo-row {
-  background: #9a5829;
+  background: #ffffff;
   color: #fff;
   text-align: center;
   font-weight: 600;
@@ -52,19 +52,13 @@
   line-height: 1;
   display: grid;
   gap: 0.05rem;
-}
-
-.navbar__brand-the {
-  font-size: 0.65rem;
-  color: #9a5829;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  color: rgb(9, 255, 0);
 }
 
 .navbar__brand-name {
   font-size: 1.45rem;
   font-weight: 800;
-  color: #383838;
+  color: #ffffff;
 }
 
 .navbar__brand-name--accent {
@@ -80,7 +74,7 @@
 
 .navbar__menu-link {
   text-decoration: none;
-  color: #2e2e2e;
+  color: #000000;
   font-size: 0.95rem;
   font-weight: 600;
 }
