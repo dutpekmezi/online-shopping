@@ -8,12 +8,10 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
-import appStylesHref from "./app.css?url";
-import gulStylesHref from "./styles/gul.css?url";
+import "./app.css";
+import "./styles/gul.css";
 
 export const links: Route.LinksFunction = () => [
-  { rel: "stylesheet", href: appStylesHref },
-  { rel: "stylesheet", href: gulStylesHref },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
