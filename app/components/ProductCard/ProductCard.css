@@ -22,6 +22,14 @@
   margin: 0;
 }
 
+
+.product-card__category {
+  margin: 0.45rem 0 0;
+  font-size: 0.86rem;
+  color: #2f5f3a;
+  font-weight: 600;
+}
+
 .product-card__description {
   color: #555;
   line-height: 1.4;
