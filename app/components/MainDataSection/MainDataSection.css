@@ -1,0 +1,77 @@
+.main-data-section {
+  min-height: 72vh;
+  background-image: linear-gradient(90deg, rgba(16, 11, 8, 0.7), rgba(16, 11, 8, 0.2)),
+    url('https://images.unsplash.com/photo-1617104551722-3b2d51366412?auto=format&fit=crop&w=2000&q=80');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  display: flex;
+  align-items: center;
+}
+
+.main-data-section__overlay {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 6rem 1rem;
+  color: #fff;
+}
+
+.main-data-section__eyebrow {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #dbb38f;
+  margin-bottom: 1rem;
+}
+
+.main-data-section__title {
+  font-family: 'Georgia', serif;
+  font-size: clamp(2rem, 4vw, 4rem);
+  line-height: 1.05;
+  max-width: 720px;
+  margin: 0 0 1rem;
+}
+
+.main-data-section__description {
+  max-width: 620px;
+  font-size: 1.1rem;
+  line-height: 1.55;
+  margin-bottom: 2rem;
+}
+
+.main-data-section__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.main-data-section__button {
+  background: #a76437;
+  color: #fff;
+  text-decoration: none;
+  padding: 0.8rem 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 0.9rem;
+}
+
+.main-data-section__button--ghost {
+  background: transparent;
+  border: 1px solid #fff;
+}
+
+@media (max-width: 768px) {
+  .main-data-section {
+    min-height: 62vh;
+    background-attachment: scroll;
+  }
+
+  .main-data-section__overlay {
+    padding: 4rem 1rem;
+  }
+
+  .main-data-section__description {
+    font-size: 1rem;
+  }
+}
