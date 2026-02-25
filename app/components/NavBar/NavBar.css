@@ -1,17 +1,15 @@
 .navbar {
   border-bottom: 1px solid #e6e6e6;
-  font-family: "Inter", sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 .navbar__contact-row,
-.navbar__promo-row,
-.navbar__main-row,
-.navbar__breadcrumb-row {
+.navbar__main-row {
   width: 100%;
 }
 
 .navbar__contact-row {
-  background: #ffffff;
+  background: #a76437;
   color: #fff;
   font-size: 0.9rem;
 }
@@ -19,50 +17,68 @@
 .navbar__contact-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0.6rem 1rem;
+  padding: 0.55rem 1rem;
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.navbar__contact-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .navbar__divider {
   opacity: 0.8;
 }
 
-.navbar__promo-row {
-  background: #ffffff;
+.navbar__socials {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.navbar__social-link {
+  width: 1.15rem;
+  height: 1.15rem;
   color: #fff;
-  text-align: center;
-  font-weight: 600;
-  padding: 0.45rem 1rem;
+  display: inline-grid;
+  place-items: center;
+  opacity: 0.95;
+}
+
+.navbar__social-link:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.navbar__social-link svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
 }
 
 .navbar__main-row {
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0.9rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-top:  1px solid black;
 }
 
 .navbar__brand {
   min-width: 150px;
   line-height: 1;
-  display: grid;
-  gap: 0.05rem;
-  color: rgb(9, 255, 0);
 }
 
 .navbar__brand-name {
   font-size: 1.45rem;
   font-weight: 800;
-  color: #000000;
-}
-
-.navbar__brand-name--accent {
-  color: #c8793d;
+  color: #1d1d1d;
 }
 
 .navbar__menu {
@@ -74,7 +90,7 @@
 
 .navbar__menu-link {
   text-decoration: none;
-  color: #000000;
+  color: #111;
   font-size: 0.95rem;
   font-weight: 600;
 }
@@ -125,5 +141,13 @@
     order: 3;
     width: 100%;
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .navbar__contact-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
   }
 }
