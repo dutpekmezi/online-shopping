@@ -1,0 +1,34 @@
+.category-section {
+  background: #f1f1f1;
+  padding: 3.5rem 1rem 4rem;
+}
+
+.category-section__container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.category-section__title {
+  font-family: 'Georgia', serif;
+  font-size: clamp(2rem, 3vw, 3rem);
+  margin-bottom: 1.75rem;
+  color: #252525;
+}
+
+.category-section__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.2rem;
+}
+
+@media (max-width: 960px) {
+  .category-section__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .category-section__grid {
+    grid-template-columns: 1fr;
+  }
+}
