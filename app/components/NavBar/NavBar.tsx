@@ -1,11 +1,19 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
 import style from './NavBar.css?url';
 
 export function links() {
   return [{ rel: 'stylesheet', href: style }];
 }
 
-const topLinks = ['Shop +', 'Contact Us', 'Shipping Info', 'Gallery', 'About Us', 'Compare Products'];
+const topLinks = [
+  { label: 'Shop', to: '/shop' },
+  { label: 'Contact Us', to: '/contact-us' },
+  { label: 'Shipping Info', to: '/shipping-info' },
+  { label: 'Gallery', to: '/gallery' },
+  { label: 'About Us', to: '/about-us' },
+  { label: 'Compare Products', to: '/compare-products' },
+];
 
 function SocialIcon({
   href,
@@ -56,14 +64,14 @@ export function NavBar() {
 
       <div className="navbar__main-row">
         <div className="navbar__brand">
-          <span className="navbar__brand-name">EDACraftAtelier</span>
+          <Link to="/home" className="navbar__brand-name">EDACraftAtelier</Link>
         </div>
 
         <nav className="navbar__menu" aria-label="Main navigation">
           {topLinks.map((link) => (
-            <a href="#" key={link} className="navbar__menu-link">
-              {link}
-            </a>
+            <Link to={link.to} key={link.to} className="navbar__menu-link">
+              {link.label}
+            </Link>
           ))}
         </nav>
 
