@@ -4,7 +4,7 @@
 
 .main-data-section {
   min-height: 72vh;
-  background-image:  linear-gradient(270deg, rgba(16, 11, 8, 0.7), rgba(16, 11, 8, 0.2)),
+  background-image:  linear-gradient(270deg, rgba(16, 11, 8, 0.7), rgba(16, 11, 8, 0)),
     url('../../Images/MainSectionImage.JPG');
   background-size:cover;
   background-position: center;
