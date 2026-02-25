@@ -1,0 +1,6 @@
+{"productId":"1","title":"Rustik Meşe Masa","description":"Doğal dokulu canlı kenarlı rustik meşe masa tablası.","imageUrl":"App/Images/MainSectionImage.JPG"}
+{"productId":"2","title":"Ceviz Konsol Üstü","description":"El işçiliğiyle hazırlanmış şık ceviz konsol üst paneli.","imageUrl":"App/Images/MainSectionImage.JPG"}
+{"productId":"3","title":"Akçaağaç Sehpa","description":"Minimal alanlar için kompakt ve modern sehpa yüzeyi.","imageUrl":"App/Images/MainSectionImage.JPG"}
+{"productId":"4","title":"Kızıl Sedir Raf","description":"Dekoratif kullanım için dayanıklı kızıl sedir ahşap raf.","imageUrl":"App/Images/MainSectionImage.JPG"}
+{"productId":"5","title":"Dişbudak Çalışma Masası","description":"Geniş yüzeyi sayesinde rahat çalışma deneyimi sunar.","imageUrl":"App/Images/MainSectionImage.JPG"}
+{"productId":"6","title":"Özel Tasarım Bar Üstü","description":"Bar alanlarına sıcak bir görünüm katan özel kesim ahşap.","imageUrl":"App/Images/MainSectionImage.JPG"}
