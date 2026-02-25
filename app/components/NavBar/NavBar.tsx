@@ -43,12 +43,6 @@ export function NavBar() {
           </button>
         </div>
       </div>
-
-      <div className="navbar__breadcrumb-row">
-        <span>Home</span>
-        <span>/</span>
-        <span>All</span>
-      </div>
     </header>
   );
 }
