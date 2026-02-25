@@ -28,37 +28,58 @@ function parseProductsFromText(text: string): Product[] {
 }
 
 const products = parseProductsFromText(productsText);
+const allCategories = ['Tümü', ...new Set(products.map((product) => product.category))];
 
 export function ProductCardList() {
   const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Tümü');
 
   const filteredProducts = useMemo(() => {
     const searchValue = query.trim().toLowerCase();
 
-    if (!searchValue) {
-      return products;
-    }
-
     return products.filter((product) => {
-      const normalizedText = `${product.title} ${product.description}`.toLowerCase();
-      return normalizedText.includes(searchValue);
+      const matchesCategory = selectedCategory === 'Tümü' || product.category === selectedCategory;
+      const normalizedText = `${product.title} ${product.description} ${product.category}`.toLowerCase();
+      const matchesSearch = !searchValue || normalizedText.includes(searchValue);
+
+      return matchesCategory && matchesSearch;
     });
-  }, [query]);
+  }, [query, selectedCategory]);
 
   return (
     <section className="product-card-list" aria-label="Product list">
       <div className="product-card-list__toolbar">
-        <label htmlFor="product-search" className="product-card-list__label">
-          Ürün Filtrele
-        </label>
-        <input
-          id="product-search"
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Başlık veya açıklama ile ara"
-          className="product-card-list__search"
-        />
+        <div className="product-card-list__field">
+          <label htmlFor="product-search" className="product-card-list__label">
+            Ürün Filtrele
+          </label>
+          <input
+            id="product-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Başlık veya açıklama ile ara"
+            className="product-card-list__search"
+          />
+        </div>
+
+        <div className="product-card-list__field">
+          <label htmlFor="product-category" className="product-card-list__label">
+            Kategori
+          </label>
+          <select
+            id="product-category"
+            value={selectedCategory}
+            onChange={(event) => setSelectedCategory(event.target.value)}
+            className="product-card-list__select"
+          >
+            {allCategories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="product-card-list__grid">
