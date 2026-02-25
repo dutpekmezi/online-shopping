@@ -13,6 +13,7 @@ const topLinks = [
   { label: 'Gallery', to: '/gallery' },
   { label: 'About Us', to: '/about-us' },
   { label: 'Compare Products', to: '/compare-products' },
+  { label: 'Collections', to: '/collections' },
 ];
 
 function SocialIcon({

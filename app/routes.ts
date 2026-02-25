@@ -9,4 +9,5 @@ export default [
   route("gallery", "routes/gallery.tsx"),
   route("about-us", "routes/about-us.tsx"),
   route("compare-products", "routes/compare-products.tsx"),
+  route("collections", "routes/collections.tsx"),
 ] satisfies RouteConfig;
