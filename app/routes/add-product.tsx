@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Form, useActionData } from 'react-router';
+import { Form, useActionData, useLoaderData } from 'react-router';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
 import addProductStylesHref from './add-product.css?url';
@@ -44,6 +44,10 @@ type ActionData = {
   message: string;
 };
 
+type LoaderData = {
+  categories: string[];
+};
+
 function toSafeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '-');
 }
@@ -67,6 +71,14 @@ function parseProductsText(text: string): StoredProduct[] {
     .map((line) => JSON.parse(line) as StoredProduct);
 }
 
+export async function loader() {
+  const productsText = await readFile(productsTextFilePath, 'utf8');
+  const products = parseProductsText(productsText);
+  const categories = Array.from(new Set(products.map((product) => product.category.trim()).filter(Boolean))).sort();
+
+  return { categories } satisfies LoaderData;
+}
+
 export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
   const title = String(formData.get('title') ?? '').trim();
@@ -74,10 +86,14 @@ export async function action({ request }: Route.ActionArgs) {
   const basePrice = String(formData.get('basePrice') ?? '').trim();
   const pricesVaryByOption = formData.get('pricesVaryByOption') === 'on';
   const serializedVariations = String(formData.get('variations') ?? '[]');
+  const selectedCategory = String(formData.get('category') ?? '').trim();
+  const newCategory = String(formData.get('newCategory') ?? '').trim();
   const photo = formData.get('photos');
 
-  if (!title || !description) {
-    return { message: 'Başlık ve açıklama zorunlu.', success: false } satisfies ActionData;
+  const category = newCategory || selectedCategory;
+
+  if (!title || !description || !category) {
+    return { message: 'Başlık, açıklama ve kategori zorunlu.', success: false } satisfies ActionData;
   }
 
   let variations: Variation[] = [];
@@ -114,7 +130,7 @@ export async function action({ request }: Route.ActionArgs) {
     title,
     description,
     imageUrl,
-    category: 'Drafts',
+    category,
     basePrice,
     pricesVaryByOption,
     variations,
@@ -126,6 +142,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function AddProduct() {
+  const { categories } = useLoaderData<typeof loader>();
   const actionData = useActionData<ActionData>();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -137,6 +154,8 @@ export default function AddProduct() {
   const [optionPrice, setOptionPrice] = useState('');
   const [selectedVariationId, setSelectedVariationId] = useState<string>('');
   const [pricesVaryByOption, setPricesVaryByOption] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(categories[0] ?? '');
+  const [newCategory, setNewCategory] = useState('');
 
   const selectedVariation = useMemo(
     () => variations.find((variation) => variation.id === selectedVariationId),
@@ -291,6 +310,30 @@ export default function AddProduct() {
                 onChange={(event) => setDescription(event.target.value)}
                 required
               />
+            </label>
+
+            <label>
+              Category
+              <select value={selectedCategory} name="category" onChange={(event) => setSelectedCategory(event.target.value)}>
+                <option value="">Kategori seçin</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Yeni kategori (opsiyonel)
+              <input
+                type="text"
+                name="newCategory"
+                placeholder="Örn: Handmade Jewelry"
+                value={newCategory}
+                onChange={(event) => setNewCategory(event.target.value)}
+              />
+              <span className="hint">Doluysa bu değer seçili kategorinin yerine kaydedilir.</span>
             </label>
           </section>
 
