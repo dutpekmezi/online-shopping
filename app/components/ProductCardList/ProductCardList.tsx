@@ -8,8 +8,9 @@ export function links() {
 }
 
 function resolveImageUrl(imageUrl: string) {
-  if (imageUrl === 'App/Images/MainSectionImage.JPG') {
-    return new URL('../../Images/MainSectionImage.JPG', import.meta.url).href;
+  if (imageUrl.startsWith('App/Images/')) {
+    const fileName = imageUrl.replace('App/Images/', '');
+    return new URL(`../../Images/${fileName}`, import.meta.url).href;
   }
 
   return imageUrl;
