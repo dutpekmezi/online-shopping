@@ -11,4 +11,9 @@ export default [
   route("compare-products", "routes/compare-products.tsx"),
   route("collections", "routes/collections.tsx"),
   route("add-product", "routes/add-product.tsx"),
+  route("login", "routes/login.tsx"),
+  route("register", "routes/register.tsx"),
+  route("account", "routes/account.tsx"),
+  route("admin", "routes/admin.tsx"),
+  route("unauthorized", "routes/unauthorized.tsx"),
 ] satisfies RouteConfig;
