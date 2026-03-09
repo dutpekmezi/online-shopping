@@ -1,5 +1,9 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { useMemo, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { ChangeEvent } from 'react';
+import { Form, useActionData } from 'react-router';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
 import addProductStylesHref from './add-product.css?url';
@@ -30,8 +34,99 @@ export function meta({}: Route.MetaArgs) {
 }
 
 const createId = () => Math.random().toString(36).slice(2, 10);
+const currentFilePath = fileURLToPath(import.meta.url);
+const appDirectory = path.resolve(path.dirname(currentFilePath), '..');
+const productsTextFilePath = path.join(appDirectory, 'data', 'products.txt');
+const productImagesDirectoryPath = path.join(appDirectory, 'Images');
+
+type ActionData = {
+  success?: boolean;
+  message: string;
+};
+
+function toSafeFileName(fileName: string) {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, '-');
+}
+
+type StoredProduct = {
+  productId: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  category: string;
+  basePrice?: string;
+  pricesVaryByOption?: boolean;
+  variations?: Variation[];
+};
+
+function parseProductsText(text: string): StoredProduct[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as StoredProduct);
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const formData = await request.formData();
+  const title = String(formData.get('title') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim();
+  const basePrice = String(formData.get('basePrice') ?? '').trim();
+  const pricesVaryByOption = formData.get('pricesVaryByOption') === 'on';
+  const serializedVariations = String(formData.get('variations') ?? '[]');
+  const photo = formData.get('photos');
+
+  if (!title || !description) {
+    return { message: 'Başlık ve açıklama zorunlu.', success: false } satisfies ActionData;
+  }
+
+  let variations: Variation[] = [];
+
+  try {
+    variations = JSON.parse(serializedVariations) as Variation[];
+  } catch {
+    return { message: 'Varyasyon verisi okunamadı.', success: false } satisfies ActionData;
+  }
+
+  const productsText = await readFile(productsTextFilePath, 'utf8');
+  const products = parseProductsText(productsText);
+  const nextProductId = String(
+    products.reduce((maxId, product) => {
+      const parsedId = Number.parseInt(product.productId.trim(), 10);
+      return Number.isNaN(parsedId) ? maxId : Math.max(maxId, parsedId);
+    }, 0) + 1,
+  );
+
+  let imageUrl = 'App/Images/MainSectionImage.JPG';
+
+  if (photo instanceof File && photo.size > 0) {
+    await mkdir(productImagesDirectoryPath, { recursive: true });
+    const extension = path.extname(photo.name) || '.jpg';
+    const imageFileName = `${nextProductId}-${Date.now()}-${toSafeFileName(path.basename(photo.name, extension))}${extension}`;
+    const imagePath = path.join(productImagesDirectoryPath, imageFileName);
+    const imageBuffer = Buffer.from(await photo.arrayBuffer());
+    await writeFile(imagePath, imageBuffer);
+    imageUrl = `App/Images/${imageFileName}`;
+  }
+
+  const draftProduct: StoredProduct = {
+    productId: nextProductId,
+    title,
+    description,
+    imageUrl,
+    category: 'Drafts',
+    basePrice,
+    pricesVaryByOption,
+    variations,
+  };
+
+  await writeFile(productsTextFilePath, `${productsText.trimEnd()}\n${JSON.stringify(draftProduct)}\n`, 'utf8');
+
+  return { message: `Taslak ürün #${nextProductId} kaydedildi.`, success: true } satisfies ActionData;
+}
 
 export default function AddProduct() {
+  const actionData = useActionData<ActionData>();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState('');
@@ -142,22 +237,6 @@ export default function AddProduct() {
     );
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const payload = {
-      title,
-      description,
-      basePrice,
-      photoNames: photos.map((photo) => photo.name),
-      pricesVaryByOption,
-      variations,
-    };
-
-    console.log('Add product payload', payload);
-    alert('Product data logged to console. Backend bağlantısı eklendiğinde kaydetme aktif olacak.');
-  };
-
   return (
     <>
       <NavBar />
@@ -171,7 +250,8 @@ export default function AddProduct() {
           </p>
         </section>
 
-        <form className="add-product-form" onSubmit={handleSubmit}>
+        <Form className="add-product-form" method="post" encType="multipart/form-data">
+          {actionData?.message && <p className="hint">{actionData.message}</p>}
           <section className="add-product-section">
             <h2>About</h2>
             <label>
@@ -181,6 +261,7 @@ export default function AddProduct() {
                 placeholder="Örn: Handcrafted Ceramic Mug"
                 maxLength={140}
                 value={title}
+                name="title"
                 onChange={(event) => setTitle(event.target.value)}
                 required
               />
@@ -189,7 +270,7 @@ export default function AddProduct() {
 
             <label>
               Photos
-              <input type="file" accept="image/*" multiple onChange={handlePhotoChange} />
+              <input type="file" accept="image/*" multiple name="photos" onChange={handlePhotoChange} />
             </label>
 
             {photos.length > 0 && (
@@ -206,6 +287,7 @@ export default function AddProduct() {
                 rows={6}
                 placeholder="Ürünü, malzemesini ve bakım bilgisini anlatın..."
                 value={description}
+                name="description"
                 onChange={(event) => setDescription(event.target.value)}
                 required
               />
@@ -222,6 +304,7 @@ export default function AddProduct() {
                 step="0.01"
                 placeholder="0.00"
                 value={basePrice}
+                name="basePrice"
                 onChange={(event) => setBasePrice(event.target.value)}
                 required
               />
@@ -230,11 +313,14 @@ export default function AddProduct() {
               <input
                 type="checkbox"
                 checked={pricesVaryByOption}
+                name="pricesVaryByOption"
                 onChange={(event) => setPricesVaryByOption(event.target.checked)}
               />
               Varyasyona göre fiyat değişsin
             </label>
           </section>
+
+          <input type="hidden" name="variations" value={JSON.stringify(variations)} readOnly />
 
           <section className="add-product-section">
             <h2>Variations</h2>
@@ -353,7 +439,7 @@ export default function AddProduct() {
           <div className="add-product-actions">
             <button type="submit">Save as Draft</button>
           </div>
-        </form>
+        </Form>
       </main>
     </>
   );
