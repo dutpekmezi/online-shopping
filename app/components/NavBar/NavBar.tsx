@@ -14,6 +14,7 @@ const topLinks = [
   { label: 'About Us', to: '/about-us' },
   { label: 'Compare Products', to: '/compare-products' },
   { label: 'Collections', to: '/collections' },
+  { label: 'Add Product', to: '/add-product' },
 ];
 
 function SocialIcon({
