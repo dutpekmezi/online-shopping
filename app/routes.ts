@@ -10,4 +10,5 @@ export default [
   route("about-us", "routes/about-us.tsx"),
   route("compare-products", "routes/compare-products.tsx"),
   route("collections", "routes/collections.tsx"),
+  route("add-product", "routes/add-product.tsx"),
 ] satisfies RouteConfig;
