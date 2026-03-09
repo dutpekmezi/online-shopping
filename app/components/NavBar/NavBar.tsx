@@ -81,7 +81,6 @@ export function NavBar() {
         </nav>
 
         <div className="navbar__actions" aria-label="Quick actions">
-          <AuthStatus />
           <button type="button" aria-label="Search" className="navbar__icon-button">
             🔍
           </button>
@@ -89,6 +88,7 @@ export function NavBar() {
             🛒
             <span className="navbar__cart-count">0</span>
           </button>
+          <AuthStatus />
         </div>
       </div>
     </header>

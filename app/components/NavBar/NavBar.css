@@ -177,3 +177,40 @@
   font-size: 0.85rem;
   color: #666;
 }
+
+.navbar__profile {
+  position: relative;
+}
+
+.navbar__profile-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 8.5rem;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 10;
+}
+
+.navbar__profile-item {
+  font-size: 0.85rem;
+  text-align: left;
+  text-decoration: none;
+  color: #222;
+  background: #fff;
+  border: 0;
+  padding: 0.55rem 0.7rem;
+}
+
+.navbar__profile-item:hover {
+  background: #f6f3ef;
+}
+
+.navbar__profile-button {
+  cursor: pointer;
+}
