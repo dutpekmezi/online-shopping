@@ -45,12 +45,14 @@
 }
 
 .add-product-section input,
+.add-product-section select,
 .add-product-section textarea,
 .add-product-section button {
   font: inherit;
 }
 
 .add-product-section input,
+.add-product-section select,
 .add-product-section textarea {
   border: 1px solid #b7b7b7;
   border-radius: 10px;
