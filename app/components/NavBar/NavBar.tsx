@@ -1,20 +1,21 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router';
-import style from './NavBar.css?url';
+import type { ReactNode } from "react";
+import { Link } from "react-router";
+import { AuthStatus } from "~/components/auth/AuthStatus";
+import style from "./NavBar.css?url";
 
 export function links() {
-  return [{ rel: 'stylesheet', href: style }];
+  return [{ rel: "stylesheet", href: style }];
 }
 
 const topLinks = [
-  { label: 'Shop', to: '/shop' },
-  { label: 'Contact Us', to: '/contact-us' },
-  { label: 'Shipping Info', to: '/shipping-info' },
-  { label: 'Gallery', to: '/gallery' },
-  { label: 'About Us', to: '/about-us' },
-  { label: 'Compare Products', to: '/compare-products' },
-  { label: 'Collections', to: '/collections' },
-  { label: 'Add Product', to: '/add-product' },
+  { label: "Shop", to: "/shop" },
+  { label: "Contact Us", to: "/contact-us" },
+  { label: "Shipping Info", to: "/shipping-info" },
+  { label: "Gallery", to: "/gallery" },
+  { label: "About Us", to: "/about-us" },
+  { label: "Compare Products", to: "/compare-products" },
+  { label: "Collections", to: "/collections" },
+  { label: "Add Product", to: "/add-product" },
 ];
 
 function SocialIcon({
@@ -66,7 +67,9 @@ export function NavBar() {
 
       <div className="navbar__main-row">
         <div className="navbar__brand">
-          <Link to="/home" className="navbar__brand-name">EDACraftAtelier</Link>
+          <Link to="/home" className="navbar__brand-name">
+            EDACraftAtelier
+          </Link>
         </div>
 
         <nav className="navbar__menu" aria-label="Main navigation">
@@ -78,8 +81,10 @@ export function NavBar() {
         </nav>
 
         <div className="navbar__actions" aria-label="Quick actions">
-          <button type="button" aria-label="Account" className="navbar__icon-button">👤</button>
-          <button type="button" aria-label="Search" className="navbar__icon-button">🔍</button>
+          <AuthStatus />
+          <button type="button" aria-label="Search" className="navbar__icon-button">
+            🔍
+          </button>
           <button type="button" aria-label="Cart" className="navbar__icon-button navbar__cart-button">
             🛒
             <span className="navbar__cart-count">0</span>

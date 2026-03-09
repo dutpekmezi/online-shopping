@@ -151,3 +151,29 @@
     gap: 0.4rem;
   }
 }
+
+.navbar__auth-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.navbar__auth-link,
+.navbar__auth-button {
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: #111;
+  border: 1px solid #d6d6d6;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0.25rem 0.6rem;
+}
+
+.navbar__auth-button {
+  cursor: pointer;
+}
+
+.navbar__auth-loading {
+  font-size: 0.85rem;
+  color: #666;
+}
