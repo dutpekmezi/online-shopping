@@ -4,22 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Form, useActionData, useLoaderData } from 'react-router';
+import { AdminCombinationPricingTable } from '../components/pricing/AdminCombinationPricingTable';
+import { StorefrontVariationSelector } from '../components/pricing/StorefrontVariationSelector';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
+import { tableSeedPricingState } from '../lib/pricing/seed';
+import type { ProductCombination, ProductPricingState, VariationGroup, VariationOption } from '../lib/pricing/types';
+import { generateCombinations, validatePricingState } from '../lib/pricing/utils';
 import addProductStylesHref from './add-product.css?url';
 import type { Route } from './+types/add-product';
-
-type VariationOption = {
-  id: string;
-  title: string;
-  price: string;
-};
-
-type Variation = {
-  id: string;
-  name: string;
-  options: VariationOption[];
-};
 
 export const links: Route.LinksFunction = () => [
   { rel: 'stylesheet', href: navBarStylesHref },
@@ -29,11 +22,20 @@ export const links: Route.LinksFunction = () => [
 export function meta({}: Route.MetaArgs) {
   return [
     { title: 'Add Product | Online Shopping' },
-    { name: 'description', content: 'Create listing style products with variations and optional pricing.' },
+    { name: 'description', content: 'Create listing style products with variation matrix pricing.' },
   ];
 }
 
 const createId = () => Math.random().toString(36).slice(2, 10);
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 const currentFilePath = fileURLToPath(import.meta.url);
 const appDirectory = path.resolve(path.dirname(currentFilePath), '..');
 const productsTextFilePath = path.join(appDirectory, 'data', 'products.txt');
@@ -59,8 +61,7 @@ type StoredProduct = {
   imageUrl: string;
   category: string;
   basePrice?: string;
-  pricesVaryByOption?: boolean;
-  variations?: Variation[];
+  pricingState?: ProductPricingState;
 };
 
 function parseProductsText(text: string): StoredProduct[] {
@@ -84,8 +85,7 @@ export async function action({ request }: Route.ActionArgs) {
   const title = String(formData.get('title') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
   const basePrice = String(formData.get('basePrice') ?? '').trim();
-  const pricesVaryByOption = formData.get('pricesVaryByOption') === 'on';
-  const serializedVariations = String(formData.get('variations') ?? '[]');
+  const serializedPricingState = String(formData.get('pricingState') ?? '{}');
   const selectedCategory = String(formData.get('category') ?? '').trim();
   const newCategory = String(formData.get('newCategory') ?? '').trim();
   const photo = formData.get('photos');
@@ -96,12 +96,17 @@ export async function action({ request }: Route.ActionArgs) {
     return { message: 'Başlık, açıklama ve kategori zorunlu.', success: false } satisfies ActionData;
   }
 
-  let variations: Variation[] = [];
+  let pricingState: ProductPricingState;
 
   try {
-    variations = JSON.parse(serializedVariations) as Variation[];
+    pricingState = JSON.parse(serializedPricingState) as ProductPricingState;
   } catch {
-    return { message: 'Varyasyon verisi okunamadı.', success: false } satisfies ActionData;
+    return { message: 'Fiyatlandırma verisi okunamadı.', success: false } satisfies ActionData;
+  }
+
+  const errors = validatePricingState(pricingState);
+  if (errors.length > 0) {
+    return { message: errors[0]?.message ?? 'Fiyatlandırma doğrulaması başarısız.', success: false } satisfies ActionData;
   }
 
   const productsText = await readFile(productsTextFilePath, 'utf8');
@@ -132,8 +137,7 @@ export async function action({ request }: Route.ActionArgs) {
     imageUrl,
     category,
     basePrice,
-    pricesVaryByOption,
-    variations,
+    pricingState,
   };
 
   await writeFile(productsTextFilePath, `${productsText.trimEnd()}\n${JSON.stringify(draftProduct)}\n`, 'utf8');
@@ -141,120 +145,145 @@ export async function action({ request }: Route.ActionArgs) {
   return { message: `Taslak ürün #${nextProductId} kaydedildi.`, success: true } satisfies ActionData;
 }
 
+const initialPricingState: ProductPricingState = {
+  basePrice: 0,
+  variationGroups: [],
+  combinations: [],
+};
+
 export default function AddProduct() {
   const { categories } = useLoaderData<typeof loader>();
   const actionData = useActionData<ActionData>();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [basePrice, setBasePrice] = useState('');
+  const [basePrice, setBasePrice] = useState('0');
   const [photos, setPhotos] = useState<File[]>([]);
-  const [variations, setVariations] = useState<Variation[]>([]);
-  const [variationName, setVariationName] = useState('');
-  const [optionTitle, setOptionTitle] = useState('');
-  const [optionPrice, setOptionPrice] = useState('');
-  const [selectedVariationId, setSelectedVariationId] = useState<string>('');
-  const [pricesVaryByOption, setPricesVaryByOption] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(categories[0] ?? '');
   const [newCategory, setNewCategory] = useState('');
 
-  const selectedVariation = useMemo(
-    () => variations.find((variation) => variation.id === selectedVariationId),
-    [selectedVariationId, variations],
+  const [pricingState, setPricingState] = useState<ProductPricingState>(initialPricingState);
+  const [variationNameInput, setVariationNameInput] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [optionLabelInput, setOptionLabelInput] = useState('');
+  const [optionIdInput, setOptionIdInput] = useState('');
+  const [optionSkuFragmentInput, setOptionSkuFragmentInput] = useState('');
+  const [optionStockInput, setOptionStockInput] = useState('0');
+
+  const selectedGroup = useMemo(
+    () => pricingState.variationGroups.find((group) => group.id === selectedGroupId),
+    [pricingState.variationGroups, selectedGroupId],
   );
+
+  const validationErrors = useMemo(() => validatePricingState(pricingState), [pricingState]);
 
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files) {
       return;
     }
 
-    const files = Array.from(event.target.files);
-    setPhotos(files);
+    setPhotos(Array.from(event.target.files));
   };
 
-  const addVariation = () => {
-    if (!variationName.trim()) {
+  const refreshCombinations = (groups: VariationGroup[]) => {
+    setPricingState((prev) => ({
+      ...prev,
+      variationGroups: groups,
+      combinations: generateCombinations(groups, prev.combinations),
+    }));
+  };
+
+  const addVariationGroup = () => {
+    if (!variationNameInput.trim() || pricingState.variationGroups.length >= 2) {
       return;
     }
 
-    const newVariation: Variation = {
-      id: createId(),
-      name: variationName.trim(),
-      options: [],
-    };
+    const id = slugify(variationNameInput) || createId();
+    const nextGroups = [
+      ...pricingState.variationGroups,
+      {
+        id,
+        name: variationNameInput.trim(),
+        options: [],
+      },
+    ];
 
-    setVariations((prev) => [...prev, newVariation]);
-    setSelectedVariationId(newVariation.id);
-    setVariationName('');
+    refreshCombinations(nextGroups);
+    setSelectedGroupId(id);
+    setVariationNameInput('');
   };
 
-  const deleteVariation = (variationId: string) => {
-    setVariations((prev) => prev.filter((variation) => variation.id !== variationId));
-    setSelectedVariationId((prev) => (prev === variationId ? '' : prev));
+  const removeVariationGroup = (groupId: string) => {
+    const nextGroups = pricingState.variationGroups.filter((group) => group.id !== groupId);
+    refreshCombinations(nextGroups);
+    setSelectedGroupId((prev) => (prev === groupId ? '' : prev));
   };
 
   const addOption = () => {
-    if (!selectedVariationId || !optionTitle.trim()) {
+    if (!selectedGroup || !optionLabelInput.trim()) {
       return;
     }
 
-    setVariations((prev) =>
-      prev.map((variation) => {
-        if (variation.id !== selectedVariationId) {
-          return variation;
-        }
+    const candidateId = optionIdInput.trim() || `${selectedGroup.id}_${slugify(optionLabelInput)}`;
+    const stockValue = Number(optionStockInput) || 0;
 
-        return {
-          ...variation,
-          options: [
-            ...variation.options,
-            { id: createId(), title: optionTitle.trim(), price: optionPrice.trim() },
-          ],
-        };
-      }),
+    const nextOption: VariationOption = {
+      id: candidateId,
+      label: optionLabelInput.trim(),
+      skuFragment: optionSkuFragmentInput.trim() || undefined,
+      stock: stockValue,
+    };
+
+    const nextGroups = pricingState.variationGroups.map((group) =>
+      group.id === selectedGroup.id
+        ? {
+            ...group,
+            options: [...group.options, nextOption],
+          }
+        : group,
     );
 
-    setOptionTitle('');
-    setOptionPrice('');
+    refreshCombinations(nextGroups);
+    setOptionLabelInput('');
+    setOptionIdInput('');
+    setOptionSkuFragmentInput('');
+    setOptionStockInput('0');
   };
 
-  const deleteOption = (variationId: string, optionId: string) => {
-    setVariations((prev) =>
-      prev.map((variation) => {
-        if (variation.id !== variationId) {
-          return variation;
-        }
-
-        return {
-          ...variation,
-          options: variation.options.filter((option) => option.id !== optionId),
-        };
-      }),
+  const removeOption = (groupId: string, optionId: string) => {
+    const nextGroups = pricingState.variationGroups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            options: group.options.filter((option) => option.id !== optionId),
+          }
+        : group,
     );
+
+    refreshCombinations(nextGroups);
   };
 
-  const updateOptionPrice = (variationId: string, optionId: string, value: string) => {
-    setVariations((prev) =>
-      prev.map((variation) => {
-        if (variation.id !== variationId) {
-          return variation;
-        }
-
-        return {
-          ...variation,
-          options: variation.options.map((option) => {
-            if (option.id !== optionId) {
-              return option;
-            }
-
-            return {
-              ...option,
-              price: value,
-            };
-          }),
-        };
-      }),
-    );
+  const updateCombination = (
+    key: string,
+    patch: Partial<Pick<ProductCombination, 'price' | 'stock' | 'sku' | 'enabled'>>,
+  ) => {
+    setPricingState((prev) => ({
+      ...prev,
+      combinations: prev.combinations.map((combination) =>
+        combination.key === key ? { ...combination, ...patch } : combination,
+      ),
+    }));
   };
+
+  const loadSeed = () => {
+    setPricingState(tableSeedPricingState);
+    setBasePrice(String(tableSeedPricingState.basePrice));
+    setSelectedGroupId(tableSeedPricingState.variationGroups[0]?.id ?? '');
+  };
+
+  const serializedPricingState = JSON.stringify({
+    ...pricingState,
+    basePrice: Number(basePrice) || 0,
+  });
 
   return (
     <>
@@ -262,15 +291,23 @@ export default function AddProduct() {
       <main className="add-product-page">
         <section className="add-product-page__header">
           <p className="add-product-page__eyebrow">Admin Tools</p>
-          <h1>Etsy benzeri ürün ekleme sayfası</h1>
-          <p>
-            Burayı route olarak açtık. İleride e-posta/şifre tabanlı admin auth geldiğinde sadece yetkili kullanıcılar
-            görebilecek.
-          </p>
+          <h1>Add product with Etsy-style combination pricing</h1>
+          <p>Pricing is resolved only by combination matrix lookup. Max 2 pricing dimensions are supported.</p>
         </section>
 
         <Form className="add-product-form" method="post" encType="multipart/form-data">
           {actionData?.message && <p className="hint">{actionData.message}</p>}
+
+          {validationErrors.length > 0 && (
+            <div className="validation-errors">
+              {validationErrors.map((error, index) => (
+                <p key={`${error.field}-${index}`} className="hint danger-text">
+                  {error.message}
+                </p>
+              ))}
+            </div>
+          )}
+
           <section className="add-product-section">
             <h2>About</h2>
             <label>
@@ -333,12 +370,11 @@ export default function AddProduct() {
                 value={newCategory}
                 onChange={(event) => setNewCategory(event.target.value)}
               />
-              <span className="hint">Doluysa bu değer seçili kategorinin yerine kaydedilir.</span>
             </label>
           </section>
 
           <section className="add-product-section">
-            <h2>Price & Inventory</h2>
+            <h2>Base Price</h2>
             <label>
               Base Price (₺)
               <input
@@ -348,52 +384,47 @@ export default function AddProduct() {
                 placeholder="0.00"
                 value={basePrice}
                 name="basePrice"
-                onChange={(event) => setBasePrice(event.target.value)}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setBasePrice(next);
+                  setPricingState((prev) => ({ ...prev, basePrice: Number(next) || 0 }));
+                }}
                 required
               />
             </label>
-            <label className="switch-row">
-              <input
-                type="checkbox"
-                checked={pricesVaryByOption}
-                name="pricesVaryByOption"
-                onChange={(event) => setPricesVaryByOption(event.target.checked)}
-              />
-              Varyasyona göre fiyat değişsin
-            </label>
+            <button type="button" onClick={loadSeed}>
+              Load table seed example
+            </button>
           </section>
 
-          <input type="hidden" name="variations" value={JSON.stringify(variations)} readOnly />
+          <input type="hidden" name="pricingState" value={serializedPricingState} readOnly />
 
           <section className="add-product-section">
-            <h2>Variations</h2>
+            <h2>Variation groups (max 2)</h2>
             <div className="variation-builder">
               <label>
-                Variation Name
+                Variation group name
                 <input
                   type="text"
-                  placeholder="Örn: Size veya Color"
-                  value={variationName}
-                  onChange={(event) => setVariationName(event.target.value)}
+                  placeholder="Örn: Size"
+                  value={variationNameInput}
+                  onChange={(event) => setVariationNameInput(event.target.value)}
                 />
               </label>
-              <button type="button" onClick={addVariation}>
-                + Add Variation
+              <button type="button" onClick={addVariationGroup} disabled={pricingState.variationGroups.length >= 2}>
+                + Add Group
               </button>
             </div>
 
-            {variations.length > 0 && (
+            {pricingState.variationGroups.length > 0 && (
               <div className="variation-list">
-                {variations.map((variation) => (
-                  <article
-                    key={variation.id}
-                    className={`variation-card ${selectedVariationId === variation.id ? 'is-active' : ''}`}
-                  >
-                    <button type="button" onClick={() => setSelectedVariationId(variation.id)}>
-                      {variation.name}
+                {pricingState.variationGroups.map((group) => (
+                  <article key={group.id} className={`variation-card ${selectedGroupId === group.id ? 'is-active' : ''}`}>
+                    <button type="button" onClick={() => setSelectedGroupId(group.id)}>
+                      {group.name}
                     </button>
-                    <span>{variation.options.length} options</span>
-                    <button type="button" className="danger" onClick={() => deleteVariation(variation.id)}>
+                    <span>{group.options.length} options</span>
+                    <button type="button" className="danger" onClick={() => removeVariationGroup(group.id)}>
                       Remove
                     </button>
                   </article>
@@ -403,67 +434,64 @@ export default function AddProduct() {
 
             <div className="option-builder">
               <h3>Option editor</h3>
-              {!selectedVariation && <p>Önce bir varyasyon seçin veya yeni bir varyasyon oluşturun.</p>}
+              {!selectedGroup && <p>Select a variation group first.</p>}
 
-              {selectedVariation && (
+              {selectedGroup && (
                 <>
-                  <p className="hint">Aktif varyasyon: {selectedVariation.name}</p>
+                  <p className="hint">Active group: {selectedGroup.name}</p>
                   <div className="option-inputs">
                     <input
                       type="text"
-                      placeholder="Option title (Örn: 20x40 Inches)"
-                      value={optionTitle}
-                      onChange={(event) => setOptionTitle(event.target.value)}
+                      placeholder="Option label (e.g. 100x60)"
+                      value={optionLabelInput}
+                      onChange={(event) => setOptionLabelInput(event.target.value)}
                     />
-
-                    {pricesVaryByOption && (
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Option price"
-                        value={optionPrice}
-                        onChange={(event) => setOptionPrice(event.target.value)}
-                      />
-                    )}
+                    <input
+                      type="text"
+                      placeholder="Option id (optional)"
+                      value={optionIdInput}
+                      onChange={(event) => setOptionIdInput(event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="SKU fragment (optional)"
+                      value={optionSkuFragmentInput}
+                      onChange={(event) => setOptionSkuFragmentInput(event.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="Stock"
+                      value={optionStockInput}
+                      onChange={(event) => setOptionStockInput(event.target.value)}
+                    />
 
                     <button type="button" onClick={addOption}>
                       Add Option
                     </button>
                   </div>
 
-                  {selectedVariation.options.length > 0 ? (
+                  {selectedGroup.options.length > 0 ? (
                     <table>
                       <thead>
                         <tr>
-                          <th>Option</th>
-                          {pricesVaryByOption && <th>Price</th>}
+                          <th>Option Label</th>
+                          <th>Option Id</th>
+                          <th>SKU Fragment</th>
+                          <th>Stock</th>
                           <th />
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedVariation.options.map((option) => (
+                        {selectedGroup.options.map((option) => (
                           <tr key={option.id}>
-                            <td>{option.title}</td>
-                            {pricesVaryByOption && (
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={option.price}
-                                  onChange={(event) =>
-                                    updateOptionPrice(selectedVariation.id, option.id, event.target.value)
-                                  }
-                                />
-                              </td>
-                            )}
+                            <td>{option.label}</td>
+                            <td>{option.id}</td>
+                            <td>{option.skuFragment || '-'}</td>
+                            <td>{option.stock ?? 0}</td>
                             <td>
-                              <button
-                                type="button"
-                                className="danger"
-                                onClick={() => deleteOption(selectedVariation.id, option.id)}
-                              >
+                              <button type="button" className="danger" onClick={() => removeOption(selectedGroup.id, option.id)}>
                                 Delete
                               </button>
                             </td>
@@ -472,15 +500,35 @@ export default function AddProduct() {
                       </tbody>
                     </table>
                   ) : (
-                    <p>Bu varyasyon için henüz seçenek yok.</p>
+                    <p>No options in this group yet.</p>
                   )}
                 </>
               )}
             </div>
           </section>
 
+          <section className="add-product-section">
+            <h2>Combination matrix pricing</h2>
+            <p className="hint">Price, stock, and SKU are set manually per combination row.</p>
+            <AdminCombinationPricingTable
+              groups={pricingState.variationGroups}
+              combinations={pricingState.combinations}
+              onUpdateCombination={updateCombination}
+            />
+          </section>
+
+          <section className="add-product-section">
+            <StorefrontVariationSelector
+              basePrice={Number(basePrice) || 0}
+              groups={pricingState.variationGroups}
+              combinations={pricingState.combinations}
+            />
+          </section>
+
           <div className="add-product-actions">
-            <button type="submit">Save as Draft</button>
+            <button type="submit" disabled={validationErrors.length > 0}>
+              Save as Draft
+            </button>
           </div>
         </Form>
       </main>
