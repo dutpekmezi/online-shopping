@@ -175,6 +175,7 @@ export default function AddProduct() {
   );
 
   const validationErrors = useMemo(() => validatePricingState(pricingState), [pricingState]);
+  const canAddVariationGroup = variationNameInput.trim().length > 0 && pricingState.variationGroups.length < 2;
 
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files) {
@@ -411,7 +412,18 @@ export default function AddProduct() {
                   onChange={(event) => setVariationNameInput(event.target.value)}
                 />
               </label>
-              <button type="button" onClick={addVariationGroup} disabled={pricingState.variationGroups.length >= 2}>
+              <button
+                type="button"
+                onClick={addVariationGroup}
+                disabled={!canAddVariationGroup}
+                title={
+                  !canAddVariationGroup
+                    ? pricingState.variationGroups.length >= 2
+                    ? 'En fazla 2 variation group ekleyebilirsiniz.'
+                    : 'Önce variation group name girin.'
+                    : undefined
+                }
+              >
                 + Add Group
               </button>
             </div>
