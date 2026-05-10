@@ -105,10 +105,7 @@ export async function action({ request }: Route.ActionArgs) {
     return { message: 'Admin oturumu doğrulanamadı.', success: false } satisfies ActionData;
   }
 
-  const userRecord = decodedToken.admin === true ? null : await adminAuth.getUser(decodedToken.uid).catch(() => null);
-  const hasAdminClaim = decodedToken.admin === true || userRecord?.customClaims?.admin === true;
-
-  if (!hasAdminClaim) {
+  if (decodedToken.admin !== true) {
     return { message: 'Bu işlem için admin yetkisi gerekli.', success: false } satisfies ActionData;
   }
 
@@ -165,6 +162,7 @@ function AddProductContent() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -333,19 +331,34 @@ function AddProductContent() {
     const form = event.currentTarget;
     const currentUser = user;
 
+    setSubmitError(null);
+
     if (!currentUser) {
-      window.alert('Ürün kaydetmek için admin olarak giriş yapmalısınız.');
+      const message = 'Ürün kaydetmek için admin olarak giriş yapmalısınız.';
+      setSubmitError(message);
+      window.alert(message);
       return;
     }
 
     try {
-      const authToken = await currentUser.getIdToken(true);
+      const tokenResult = await currentUser.getIdTokenResult(true);
+
+      if (tokenResult.claims.admin !== true) {
+        const message = 'Admin yetkisi yenilenemedi. Lütfen çıkış yapıp tekrar giriş yapın.';
+        setSubmitError(message);
+        window.alert(message);
+        return;
+      }
+
+      const authToken = tokenResult.token || (await currentUser.getIdToken(true));
       const formData = new FormData(form);
       formData.set('authToken', authToken);
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
       const detail = error instanceof Error ? ` (${error.message})` : '';
-      window.alert(`Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.${detail}`);
+      const message = `Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.${detail}`;
+      setSubmitError(message);
+      window.alert(message);
     }
   };
 
@@ -360,6 +373,7 @@ function AddProductContent() {
         </section>
 
         <Form className="add-product-form" method="post" encType="multipart/form-data" onSubmit={handleSubmit}>
+          {submitError && <p className="hint danger-text">{submitError}</p>}
           {actionData?.message && <p className={actionData.success ? 'hint success-text' : 'hint danger-text'}>{actionData.message}</p>}
           {categoriesLoading && <p className="hint">Kategoriler Firestore'dan yükleniyor...</p>}
           {categoriesError && <p className="hint danger-text">{categoriesError}</p>}
