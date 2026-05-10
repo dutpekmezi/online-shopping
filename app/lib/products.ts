@@ -1,4 +1,4 @@
-import { collection, getDocs, orderBy, query, type Timestamp } from 'firebase/firestore';
+import { collection, getDocs, type Timestamp } from 'firebase/firestore';
 import { db } from './firebase.client';
 import type { ProductPricingState } from './pricing/types';
 
@@ -25,17 +25,45 @@ export function resolveProductImageUrl(imageUrl: string) {
   return imageUrl;
 }
 
-export async function fetchProducts(): Promise<Product[]> {
-  const productsQuery = query(collection(db, PRODUCTS_COLLECTION), orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(productsQuery);
+function toOptionalTimestamp(value: unknown): Timestamp | undefined {
+  if (value && typeof value === 'object' && 'toMillis' in value && typeof value.toMillis === 'function') {
+    return value as Timestamp;
+  }
 
-  return snapshot.docs.map((doc) => {
-    const data = doc.data() as Omit<Product, 'productId'> & { productId?: string };
+  return undefined;
+}
+
+function toProductField(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function sortByCreatedAtDesc(products: Product[]) {
+  return [...products].sort((firstProduct, secondProduct) => {
+    const firstCreatedAt = firstProduct.createdAt?.toMillis() ?? 0;
+    const secondCreatedAt = secondProduct.createdAt?.toMillis() ?? 0;
+
+    return secondCreatedAt - firstCreatedAt;
+  });
+}
+
+export async function fetchProducts(): Promise<Product[]> {
+  const snapshot = await getDocs(collection(db, PRODUCTS_COLLECTION));
+  const products = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    const imageUrl = toProductField(data.imageUrl);
 
     return {
-      ...data,
-      productId: data.productId ?? doc.id,
-      imageUrl: resolveProductImageUrl(data.imageUrl ?? ''),
-    };
+      productId: toProductField(data.productId, doc.id),
+      title: toProductField(data.title, 'İsimsiz ürün'),
+      description: toProductField(data.description),
+      imageUrl: resolveProductImageUrl(imageUrl),
+      category: toProductField(data.category, 'Genel'),
+      basePrice: typeof data.basePrice === 'string' ? data.basePrice : undefined,
+      pricingState: data.pricingState as ProductPricingState | undefined,
+      createdAt: toOptionalTimestamp(data.createdAt),
+      updatedAt: toOptionalTimestamp(data.updatedAt),
+    } satisfies Product;
   });
+
+  return sortByCreatedAtDesc(products);
 }
