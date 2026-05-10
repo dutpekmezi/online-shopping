@@ -1,16 +1,9 @@
+import type { Product } from '../../lib/products';
 import style from './ProductCard.css?url';
 
 export function links() {
   return [{ rel: 'stylesheet', href: style }];
 }
-
-export type Product = {
-  productId: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  category: string;
-};
 
 type ProductCardProps = {
   product: Product;

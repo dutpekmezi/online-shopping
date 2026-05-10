@@ -1,39 +1,55 @@
-import { useMemo, useState } from 'react';
-import { ProductCard, type Product } from '../ProductCard/ProductCard';
-import productsText from '../../data/products.txt?raw';
+import { useEffect, useMemo, useState } from 'react';
+import { ProductCard } from '../ProductCard/ProductCard';
+import { fetchProducts, type Product } from '../../lib/products';
 import style from './ProductCardList.css?url';
 
 export function links() {
   return [{ rel: 'stylesheet', href: style }];
 }
 
-function resolveImageUrl(imageUrl: string) {
-  if (imageUrl.startsWith('App/Images/')) {
-    const fileName = imageUrl.replace('App/Images/', '');
-    return new URL(`../../Images/${fileName}`, import.meta.url).href;
-  }
-
-  return imageUrl;
-}
-
-function parseProductsFromText(text: string): Product[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as Product)
-    .map((product) => ({
-      ...product,
-      imageUrl: resolveImageUrl(product.imageUrl),
-    }));
-}
-
-const products = parseProductsFromText(productsText);
-const allCategories = ['Tümü', ...new Set(products.map((product) => product.category))];
-
 export function ProductCardList() {
+  const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tümü');
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    async function loadProducts() {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const nextProducts = await fetchProducts();
+
+        if (isSubscribed) {
+          setProducts(nextProducts);
+        }
+      } catch (error) {
+        if (isSubscribed) {
+          setProducts([]);
+          setErrorMessage(error instanceof Error ? error.message : 'Ürünler yüklenirken bir hata oluştu.');
+        }
+      } finally {
+        if (isSubscribed) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadProducts();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
+
+  const allCategories = useMemo(
+    () => ['Tümü', ...new Set(products.map((product) => product.category).filter(Boolean))],
+    [products],
+  );
 
   const filteredProducts = useMemo(() => {
     const searchValue = query.trim().toLowerCase();
@@ -45,7 +61,7 @@ export function ProductCardList() {
 
       return matchesCategory && matchesSearch;
     });
-  }, [query, selectedCategory]);
+  }, [products, query, selectedCategory]);
 
   return (
     <section className="product-card-list" aria-label="Product list">
@@ -83,11 +99,20 @@ export function ProductCardList() {
         </div>
       </div>
 
-      <div className="product-card-list__grid">
-        {filteredProducts.map((product) => (
-          <ProductCard key={product.productId} product={product} />
-        ))}
-      </div>
+      {isLoading && <p className="product-card-list__status">Ürünler yükleniyor...</p>}
+      {errorMessage && <p className="product-card-list__status product-card-list__status--error">{errorMessage}</p>}
+
+      {!isLoading && !errorMessage && filteredProducts.length === 0 && (
+        <p className="product-card-list__status">Gösterilecek ürün bulunamadı.</p>
+      )}
+
+      {!isLoading && !errorMessage && filteredProducts.length > 0 && (
+        <div className="product-card-list__grid">
+          {filteredProducts.map((product) => (
+            <ProductCard key={product.productId} product={product} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
