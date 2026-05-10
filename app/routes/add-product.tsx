@@ -10,7 +10,7 @@ import { AdminCombinationPricingTable } from '../components/pricing/AdminCombina
 import { StorefrontVariationSelector } from '../components/pricing/StorefrontVariationSelector';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
-import { auth } from '../lib/firebase.client';
+import { useAuth } from '../hooks/useAuth';
 import { fetchProducts } from '../lib/products';
 import { tableSeedPricingState } from '../lib/pricing/seed';
 import type { ProductCombination, ProductPricingState, VariationGroup, VariationOption } from '../lib/pricing/types';
@@ -148,6 +148,7 @@ const initialPricingState: ProductPricingState = {
 function AddProductContent() {
   const actionData = useActionData<ActionData>();
   const submit = useSubmit();
+  const { user } = useAuth();
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -322,7 +323,7 @@ function AddProductContent() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const currentUser = auth.currentUser;
+    const currentUser = user;
 
     if (!currentUser) {
       window.alert('Ürün kaydetmek için admin olarak giriş yapmalısınız.');
@@ -330,18 +331,13 @@ function AddProductContent() {
     }
 
     try {
-      const tokenResult = await currentUser.getIdTokenResult(true);
-
-      if (tokenResult.claims.admin !== true) {
-        window.alert('Bu işlem için admin yetkisi gerekli.');
-        return;
-      }
-
+      const authToken = await currentUser.getIdToken();
       const formData = new FormData(event.currentTarget);
-      formData.set('authToken', tokenResult.token);
+      formData.set('authToken', authToken);
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
-    } catch {
-      window.alert('Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.');
+    } catch (error) {
+      const detail = error instanceof Error ? ` (${error.message})` : '';
+      window.alert(`Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.${detail}`);
     }
   };
 
