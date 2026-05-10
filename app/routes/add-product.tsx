@@ -101,7 +101,14 @@ export async function action({ request }: Route.ActionArgs) {
   const adminAuth = await getAdminAuth();
   const decodedToken = await adminAuth.verifyIdToken(authToken).catch(() => null);
 
-  if (!decodedToken || decodedToken.admin !== true) {
+  if (!decodedToken) {
+    return { message: 'Admin oturumu doğrulanamadı.', success: false } satisfies ActionData;
+  }
+
+  const userRecord = decodedToken.admin === true ? null : await adminAuth.getUser(decodedToken.uid).catch(() => null);
+  const hasAdminClaim = decodedToken.admin === true || userRecord?.customClaims?.admin === true;
+
+  if (!hasAdminClaim) {
     return { message: 'Bu işlem için admin yetkisi gerekli.', success: false } satisfies ActionData;
   }
 
@@ -332,7 +339,7 @@ function AddProductContent() {
     }
 
     try {
-      const authToken = await currentUser.getIdToken();
+      const authToken = await currentUser.getIdToken(true);
       const formData = new FormData(form);
       formData.set('authToken', authToken);
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
