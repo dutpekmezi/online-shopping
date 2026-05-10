@@ -48,3 +48,19 @@
     grid-template-columns: 1fr;
   }
 }
+
+.product-card-list__status {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  color: #374151;
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+}
+
+.product-card-list__status--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}

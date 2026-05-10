@@ -1,14 +1,17 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { useMemo, useState } from 'react';
-import type { ChangeEvent } from 'react';
-import { Form, useActionData, useLoaderData } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { Form, useActionData, useSubmit } from 'react-router';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { AdminCombinationPricingTable } from '../components/pricing/AdminCombinationPricingTable';
 import { StorefrontVariationSelector } from '../components/pricing/StorefrontVariationSelector';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
+import { auth } from '../lib/firebase.client';
+import { fetchProducts } from '../lib/products';
 import { tableSeedPricingState } from '../lib/pricing/seed';
 import type { ProductCombination, ProductPricingState, VariationGroup, VariationOption } from '../lib/pricing/types';
 import { generateCombinations, validatePricingState } from '../lib/pricing/utils';
@@ -39,16 +42,11 @@ function slugify(value: string): string {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const appDirectory = path.resolve(path.dirname(currentFilePath), '..');
-const productsTextFilePath = path.join(appDirectory, 'data', 'products.txt');
 const productImagesDirectoryPath = path.join(appDirectory, 'Images');
 
 type ActionData = {
   success?: boolean;
   message: string;
-};
-
-type LoaderData = {
-  categories: string[];
 };
 
 function toSafeFileName(fileName: string) {
@@ -61,28 +59,13 @@ type StoredProduct = {
   description: string;
   imageUrl: string;
   category: string;
-  basePrice?: string;
-  pricingState?: ProductPricingState;
+  basePrice: string;
+  pricingState: ProductPricingState;
 };
-
-function parseProductsText(text: string): StoredProduct[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as StoredProduct);
-}
-
-export async function loader() {
-  const productsText = await readFile(productsTextFilePath, 'utf8');
-  const products = parseProductsText(productsText);
-  const categories = Array.from(new Set(products.map((product) => product.category.trim()).filter(Boolean))).sort();
-
-  return { categories } satisfies LoaderData;
-}
 
 export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
+  const authToken = String(formData.get('authToken') ?? '').trim();
   const title = String(formData.get('title') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
   const basePrice = String(formData.get('basePrice') ?? '').trim();
@@ -110,14 +93,20 @@ export async function action({ request }: Route.ActionArgs) {
     return { message: errors[0]?.message ?? 'Fiyatlandırma doğrulaması başarısız.', success: false } satisfies ActionData;
   }
 
-  const productsText = await readFile(productsTextFilePath, 'utf8');
-  const products = parseProductsText(productsText);
-  const nextProductId = String(
-    products.reduce((maxId, product) => {
-      const parsedId = Number.parseInt(product.productId.trim(), 10);
-      return Number.isNaN(parsedId) ? maxId : Math.max(maxId, parsedId);
-    }, 0) + 1,
-  );
+  if (!authToken) {
+    return { message: 'Admin oturumu doğrulanamadı.', success: false } satisfies ActionData;
+  }
+
+  const { getAdminAuth, getAdminFirestore, FieldValue } = await import('../lib/firebase-admin.server');
+  const adminAuth = await getAdminAuth();
+  const decodedToken = await adminAuth.verifyIdToken(authToken).catch(() => null);
+
+  if (!decodedToken || decodedToken.admin !== true) {
+    return { message: 'Bu işlem için admin yetkisi gerekli.', success: false } satisfies ActionData;
+  }
+
+  const db = await getAdminFirestore();
+  const nextProductId = randomUUID();
 
   let imageUrl = 'App/Images/MainSectionImage.JPG';
 
@@ -141,9 +130,13 @@ export async function action({ request }: Route.ActionArgs) {
     pricingState,
   };
 
-  await writeFile(productsTextFilePath, `${productsText.trimEnd()}\n${JSON.stringify(draftProduct)}\n`, 'utf8');
+  await db.collection('products').doc(nextProductId).set({
+    ...draftProduct,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
 
-  return { message: `Taslak ürün #${nextProductId} kaydedildi.`, success: true } satisfies ActionData;
+  return { message: `Taslak ürün #${nextProductId} Firestore'a kaydedildi.`, success: true } satisfies ActionData;
 }
 
 const initialPricingState: ProductPricingState = {
@@ -153,14 +146,53 @@ const initialPricingState: ProductPricingState = {
 };
 
 function AddProductContent() {
-  const { categories } = useLoaderData<typeof loader>();
   const actionData = useActionData<ActionData>();
+  const submit = useSubmit();
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState('0');
   const [photos, setPhotos] = useState<File[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState(categories[0] ?? '');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    async function loadCategories() {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+
+      try {
+        const products = await fetchProducts();
+        const nextCategories = Array.from(
+          new Set(products.map((product) => product.category.trim()).filter(Boolean)),
+        ).sort();
+
+        if (isSubscribed) {
+          setCategories(nextCategories);
+          setSelectedCategory((currentCategory) => currentCategory || nextCategories[0] || '');
+        }
+      } catch (error) {
+        if (isSubscribed) {
+          setCategories([]);
+          setCategoriesError(error instanceof Error ? error.message : 'Kategoriler yüklenirken hata oluştu.');
+        }
+      } finally {
+        if (isSubscribed) {
+          setCategoriesLoading(false);
+        }
+      }
+    }
+
+    loadCategories();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
 
   const [pricingState, setPricingState] = useState<ProductPricingState>(initialPricingState);
   const [variationNameInput, setVariationNameInput] = useState('');
@@ -287,6 +319,32 @@ function AddProductContent() {
     basePrice: Number(basePrice) || 0,
   });
 
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      window.alert('Ürün kaydetmek için admin olarak giriş yapmalısınız.');
+      return;
+    }
+
+    try {
+      const tokenResult = await currentUser.getIdTokenResult(true);
+
+      if (tokenResult.claims.admin !== true) {
+        window.alert('Bu işlem için admin yetkisi gerekli.');
+        return;
+      }
+
+      const formData = new FormData(event.currentTarget);
+      formData.set('authToken', tokenResult.token);
+      submit(formData, { method: 'post', encType: 'multipart/form-data' });
+    } catch {
+      window.alert('Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.');
+    }
+  };
+
   return (
     <>
       <NavBar />
@@ -297,8 +355,11 @@ function AddProductContent() {
           <p>Pricing is resolved only by combination matrix lookup. Max 2 pricing dimensions are supported.</p>
         </section>
 
-        <Form className="add-product-form" method="post" encType="multipart/form-data">
-          {actionData?.message && <p className="hint">{actionData.message}</p>}
+        <Form className="add-product-form" method="post" encType="multipart/form-data" onSubmit={handleSubmit}>
+          {actionData?.message && <p className={actionData.success ? 'hint success-text' : 'hint danger-text'}>{actionData.message}</p>}
+          {categoriesLoading && <p className="hint">Kategoriler Firestore'dan yükleniyor...</p>}
+          {categoriesError && <p className="hint danger-text">{categoriesError}</p>}
+          <input type="hidden" name="authToken" value="" readOnly />
 
           {validationErrors.length > 0 && (
             <div className="validation-errors">
