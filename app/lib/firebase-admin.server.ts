@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 async function loadServiceAccount() {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -16,6 +17,10 @@ async function loadServiceAccount() {
   return null;
 }
 
+function getStorageBucketName() {
+  return process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET;
+}
+
 async function getAdminApp() {
   const existingApp = getApps()[0];
 
@@ -25,11 +30,14 @@ async function getAdminApp() {
 
   const serviceAccount = await loadServiceAccount();
 
+  const storageBucket = getStorageBucketName();
+  const appOptions = storageBucket ? { storageBucket } : undefined;
+
   if (serviceAccount) {
-    return initializeApp({ credential: cert(serviceAccount) });
+    return initializeApp({ credential: cert(serviceAccount), ...appOptions });
   }
 
-  return initializeApp();
+  return initializeApp(appOptions);
 }
 
 export async function getAdminAuth() {
@@ -40,6 +48,11 @@ export async function getAdminAuth() {
 export async function getAdminFirestore() {
   const app = await getAdminApp();
   return getFirestore(app);
+}
+
+export async function getAdminStorageBucket() {
+  const app = await getAdminApp();
+  return getStorage(app).bucket();
 }
 
 export { FieldValue };

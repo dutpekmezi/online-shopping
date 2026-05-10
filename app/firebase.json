@@ -13,5 +13,8 @@
         "supportEmail": "edacraftateiler@gmail.com"
       }
     }
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }
