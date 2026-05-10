@@ -24,6 +24,38 @@ cp .env.example .env
 npm run dev
 ```
 
+
+## Firestore ürün kataloğu
+
+Ürün listeleme `/shop` ve `/collections` sayfalarında doğrudan Cloud Firestore'daki `products` koleksiyonundan okunur. Uygulama, elle eklenen dokümanlarda `createdAt` alanı yoksa ürünü yine gösterir ve tarih alanı olan ürünleri en yeni önce sıralar.
+
+### Gerekli koleksiyon
+
+Firebase Console > Cloud Firestore > Data ekranında `products` koleksiyonu oluşturun. Her ürün dokümanında en az şu alanları kullanın:
+
+- `title` (string)
+- `description` (string)
+- `category` (string)
+- `imageUrl` (string, örn. `https://...` veya repodaki görseller için `App/Images/MainSectionImage.JPG`)
+
+Opsiyonel alanlar:
+
+- `productId` (string, yoksa doküman id'si kullanılır)
+- `basePrice` (string)
+- `pricingState` (map)
+- `createdAt` (timestamp)
+- `updatedAt` (timestamp)
+
+### Firestore güvenlik kuralları
+
+Console'daki varsayılan kural tüm okuma/yazmaları kapatır. Ürünlerin client tarafından okunabilmesi için `app/firestore.rules` dosyasındaki kuralları Firebase'e yayınlayın:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Beklenen davranış: `products` koleksiyonu herkese okunabilir, yazma/güncelleme/silme sadece `admin: true` custom claim'e sahip kullanıcılarla sınırlıdır.
+
 ## Firebase Console ayarları
 
 1. **Authentication > Sign-in method**

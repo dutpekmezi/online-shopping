@@ -30,7 +30,15 @@ export function ProductCardList() {
       } catch (error) {
         if (isSubscribed) {
           setProducts([]);
-          setErrorMessage(error instanceof Error ? error.message : 'Ürünler yüklenirken bir hata oluştu.');
+          const errorCode = typeof error === 'object' && error !== null && 'code' in error ? error.code : null;
+
+          setErrorMessage(
+            errorCode === 'permission-denied'
+              ? 'Firestore ürün okuma izni kapalı. app/firestore.rules dosyasındaki products okuma kuralını Firebase Console veya Firebase CLI ile yayınlayın.'
+              : error instanceof Error
+                ? error.message
+                : 'Ürünler yüklenirken bir hata oluştu.',
+          );
         }
       } finally {
         if (isSubscribed) {
