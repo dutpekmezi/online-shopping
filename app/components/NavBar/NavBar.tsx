@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { AuthStatus } from "~/components/auth/AuthStatus";
+import { useAuth } from "~/hooks/useAuth";
 import style from "./NavBar.css?url";
 
 export function links() {
@@ -15,8 +16,9 @@ const topLinks = [
   { label: "About Us", to: "/about-us" },
   { label: "Compare Products", to: "/compare-products" },
   { label: "Collections", to: "/collections" },
-  { label: "Add Product", to: "/add-product" },
 ];
+
+const adminLinks = [{ label: "Add Product", to: "/add-product" }];
 
 function SocialIcon({
   href,
@@ -35,6 +37,9 @@ function SocialIcon({
 }
 
 export function NavBar() {
+  const { isAdmin } = useAuth();
+  const visibleLinks = isAdmin ? [...topLinks, ...adminLinks] : topLinks;
+
   return (
     <header className="navbar">
       <div className="navbar__contact-row">
@@ -73,7 +78,7 @@ export function NavBar() {
         </div>
 
         <nav className="navbar__menu" aria-label="Main navigation">
-          {topLinks.map((link) => (
+          {visibleLinks.map((link) => (
             <Link to={link.to} key={link.to} className="navbar__menu-link">
               {link.label}
             </Link>

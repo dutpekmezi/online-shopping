@@ -82,7 +82,8 @@ export default function LoginPage() {
 
             try {
               await loginWithGoogle();
-              navigate("/account");
+              const state = location.state as LocationState | null;
+              navigate(state?.from ?? "/account");
             } finally {
               setSubmitting(false);
             }

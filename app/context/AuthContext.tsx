@@ -7,8 +7,10 @@ import {
   useState,
 } from "react";
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -47,13 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const refreshClaims = useCallback(async () => {
-    if (!auth.currentUser) {
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
       setIsAdmin(false);
       return;
     }
 
-    const idTokenResult = await auth.currentUser.getIdTokenResult(true);
-    setIsAdmin(Boolean(idTokenResult.claims.admin));
+    const idTokenResult = await currentUser.getIdTokenResult(true);
+    setIsAdmin(idTokenResult.claims.admin === true);
   }, []);
 
   useEffect(() => {
@@ -62,21 +66,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true);
-      setUser(currentUser);
+    let isSubscribed = true;
+    let unsubscribe = () => {};
 
-      if (currentUser) {
-        const idTokenResult = await currentUser.getIdTokenResult();
-        setIsAdmin(Boolean(idTokenResult.claims.admin));
-      } else {
+    async function initializeAuthState() {
+      await setPersistence(auth, browserLocalPersistence);
+
+      unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        if (!isSubscribed) {
+          return;
+        }
+
+        setLoading(true);
+        setUser(currentUser);
+
+        try {
+          if (currentUser) {
+            const idTokenResult = await currentUser.getIdTokenResult(true);
+            setIsAdmin(idTokenResult.claims.admin === true);
+          } else {
+            setIsAdmin(false);
+          }
+        } catch (error) {
+          setIsAdmin(false);
+          setErrorMessage(toErrorMessage(error));
+        } finally {
+          if (isSubscribed) {
+            setLoading(false);
+          }
+        }
+      });
+    }
+
+    initializeAuthState().catch((error) => {
+      if (isSubscribed) {
+        setErrorMessage(toErrorMessage(error));
+        setUser(null);
         setIsAdmin(false);
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      isSubscribed = false;
+      unsubscribe();
+    };
   }, []);
 
   const clearError = useCallback(() => setErrorMessage(null), []);
