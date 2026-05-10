@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Form, useActionData, useLoaderData } from 'react-router';
+import { AuthGuard } from '../components/auth/AuthGuard';
 import { AdminCombinationPricingTable } from '../components/pricing/AdminCombinationPricingTable';
 import { StorefrontVariationSelector } from '../components/pricing/StorefrontVariationSelector';
 import { NavBar } from '../components/NavBar/NavBar';
@@ -151,7 +152,7 @@ const initialPricingState: ProductPricingState = {
   combinations: [],
 };
 
-export default function AddProduct() {
+function AddProductContent() {
   const { categories } = useLoaderData<typeof loader>();
   const actionData = useActionData<ActionData>();
   const [title, setTitle] = useState('');
@@ -545,5 +546,13 @@ export default function AddProduct() {
         </Form>
       </main>
     </>
+  );
+}
+
+export default function AddProduct() {
+  return (
+    <AuthGuard requireAdmin>
+      <AddProductContent />
+    </AuthGuard>
   );
 }
