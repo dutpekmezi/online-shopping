@@ -323,6 +323,7 @@ function AddProductContent() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const form = event.currentTarget;
     const currentUser = user;
 
     if (!currentUser) {
@@ -332,7 +333,7 @@ function AddProductContent() {
 
     try {
       const authToken = await currentUser.getIdToken();
-      const formData = new FormData(event.currentTarget);
+      const formData = new FormData(form);
       formData.set('authToken', authToken);
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
