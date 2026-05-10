@@ -1,7 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Form, useActionData, useSubmit } from 'react-router';
@@ -40,17 +37,19 @@ function slugify(value: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
-const currentFilePath = fileURLToPath(import.meta.url);
-const appDirectory = path.resolve(path.dirname(currentFilePath), '..');
-const productImagesDirectoryPath = path.join(appDirectory, 'Images');
-
 type ActionData = {
   success?: boolean;
   message: string;
 };
 
 function toSafeFileName(fileName: string) {
-  return fileName.replace(/[^a-zA-Z0-9._-]/g, '-');
+  const safeFileName = fileName.trim().replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-');
+
+  return safeFileName || 'product-image';
+}
+
+function createStorageFileName(fileName: string) {
+  return `${Date.now()}-${randomUUID()}-${toSafeFileName(fileName)}`;
 }
 
 type StoredProduct = {
@@ -97,7 +96,7 @@ export async function action({ request }: Route.ActionArgs) {
     return { message: 'Admin oturumu doğrulanamadı.', success: false } satisfies ActionData;
   }
 
-  const { getAdminAuth, getAdminFirestore, FieldValue } = await import('../lib/firebase-admin.server');
+  const { getAdminAuth, getAdminFirestore, getAdminStorageBucket, FieldValue } = await import('../lib/firebase-admin.server');
   const adminAuth = await getAdminAuth();
   const decodedToken = await adminAuth.verifyIdToken(authToken).catch(() => null);
 
@@ -115,13 +114,26 @@ export async function action({ request }: Route.ActionArgs) {
   let imageUrl = 'App/Images/MainSectionImage.JPG';
 
   if (photo instanceof File && photo.size > 0) {
-    await mkdir(productImagesDirectoryPath, { recursive: true });
-    const extension = path.extname(photo.name) || '.jpg';
-    const imageFileName = `${nextProductId}-${Date.now()}-${toSafeFileName(path.basename(photo.name, extension))}${extension}`;
-    const imagePath = path.join(productImagesDirectoryPath, imageFileName);
+    const bucket = await getAdminStorageBucket();
+    const imageFileName = createStorageFileName(photo.name);
+    const storagePath = `products/${nextProductId}/${imageFileName}`;
+    const imageFile = bucket.file(storagePath);
+    const downloadToken = randomUUID();
     const imageBuffer = Buffer.from(await photo.arrayBuffer());
-    await writeFile(imagePath, imageBuffer);
-    imageUrl = `App/Images/${imageFileName}`;
+
+    await imageFile.save(imageBuffer, {
+      metadata: {
+        contentType: photo.type || 'application/octet-stream',
+        metadata: {
+          firebaseStorageDownloadTokens: downloadToken,
+        },
+      },
+      resumable: false,
+    });
+
+    imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+      storagePath,
+    )}?alt=media&token=${downloadToken}`;
   }
 
   const draftProduct: StoredProduct = {
