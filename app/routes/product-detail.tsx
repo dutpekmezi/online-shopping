@@ -97,28 +97,6 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
 
       <h1 className="product-detail__title">{product.title}</h1>
 
-      <div className="product-detail__seller-row">
-        <div>
-          <span className="product-detail__eyebrow">Sold by</span>
-          <strong>{product.storeName ?? 'Online Shopping Studio'}</strong>
-        </div>
-        <div className="product-detail__rating" aria-label="Customer rating placeholder">
-          <span aria-hidden="true">★★★★★</span>
-          <small>{product.rating ? `${product.rating} rating` : 'New item'}</small>
-        </div>
-      </div>
-
-      <div className="product-detail__info-list">
-        <p>
-          <strong>Ships from</strong>
-          <span>{product.shippingOrigin ?? 'our fulfillment studio'}</span>
-        </p>
-        <p>
-          <strong>Returns & exchanges</strong>
-          <span>{product.returnsInfo ?? 'Contact us if your order is not right.'}</span>
-        </p>
-      </div>
-
       {hasVariations && (
         <div className="product-detail__variations" aria-label="Choose product options">
           {pricingState.variationGroups.map((group: VariationGroup, groupIndex: number) => (
@@ -167,10 +145,6 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
         </button>
       </div>
 
-      <div className="product-detail__reassurance" aria-label="Seller reassurance">
-        <strong>Shop with confidence</strong>
-        <span>Secure checkout, careful packing, and friendly support from our customer care team.</span>
-      </div>
     </aside>
   );
 }
