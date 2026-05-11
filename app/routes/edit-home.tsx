@@ -15,6 +15,7 @@ import {
   type HomeContent,
 } from '../lib/home-content';
 import { invalidateHomeContentCache, useHomeContent } from '../hooks/useHomeContent';
+import { optimizeHomeImageFile } from '../lib/home-image-optimizer.client';
 import editHomeStylesHref from './edit-home.css?url';
 import type { Route } from './+types/edit-home';
 
@@ -199,6 +200,7 @@ function EditHomeContent() {
     categories: {},
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isOptimizingImages, setIsOptimizingImages] = useState(false);
   const actionData = useActionData<ActionData>();
   const submit = useSubmit();
   const { user } = useAuth();
@@ -206,6 +208,12 @@ function EditHomeContent() {
   useEffect(() => {
     setHomeContent(loadedHomeContent);
   }, [loadedHomeContent]);
+
+  useEffect(() => {
+    if (actionData) {
+      setIsOptimizingImages(false);
+    }
+  }, [actionData]);
 
   const handleHeroImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -251,14 +259,35 @@ function EditHomeContent() {
         return;
       }
 
-      invalidateHomeContentCache();
+      setIsOptimizingImages(true);
 
       const formData = new FormData(form);
       formData.set('authToken', authToken);
+
+      const heroImageFile = formData.get('heroImageFile');
+
+      if (heroImageFile instanceof File && heroImageFile.size > 0) {
+        formData.set('heroImageFile', await optimizeHomeImageFile(heroImageFile, 'hero'));
+      }
+
+      await Promise.all(
+        homeContent.categories.map(async (_category, index) => {
+          const fieldName = `categoryImageFile-${index}`;
+          const categoryImageFile = formData.get(fieldName);
+
+          if (categoryImageFile instanceof File && categoryImageFile.size > 0) {
+            formData.set(fieldName, await optimizeHomeImageFile(categoryImageFile, 'category'));
+          }
+        }),
+      );
+
+      invalidateHomeContentCache();
+
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
       const detail = error instanceof Error ? ` (${error.message})` : '';
-      setSubmitError(`Admin oturumu doğrulanamadı.${detail}`);
+      setSubmitError(`Admin oturumu doğrulanamadı veya resimler optimize edilemedi.${detail}`);
+      setIsOptimizingImages(false);
     }
   };
 
@@ -274,6 +303,7 @@ function EditHomeContent() {
           {isLoading ? <p className="edit-home-message">Home içeriği yükleniyor…</p> : null}
           {error ? <p className="edit-home-message edit-home-message--error">Home içeriği yüklenemedi; yedek içerik gösteriliyor.</p> : null}
           {submitError ? <p className="edit-home-message edit-home-message--error">{submitError}</p> : null}
+          {isOptimizingImages ? <p className="edit-home-message">Resimler optimize ediliyor…</p> : null}
           {actionData?.message ? (
             <p className={`edit-home-message ${actionData.success ? 'edit-home-message--success' : 'edit-home-message--error'}`}>
               {actionData.message}
@@ -344,7 +374,9 @@ function EditHomeContent() {
           </section>
 
           <div className="edit-home-actions">
-            <button className="edit-home-save" type="submit">Kaydet</button>
+            <button className="edit-home-save" type="submit" disabled={isOptimizingImages}>
+              {isOptimizingImages ? 'Optimize ediliyor…' : 'Kaydet'}
+            </button>
           </div>
         </Form>
       </main>
