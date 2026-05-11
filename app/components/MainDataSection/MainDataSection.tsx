@@ -8,10 +8,9 @@ export function links() {
 
 type MainDataSectionProps = {
   content?: Pick<HomeContent, 'heroImageUrl' | 'heroEyebrow' | 'heroTitle' | 'heroDescription'>;
-  isLoading?: boolean;
 };
 
-export function MainDataSection({ content = defaultHomeContent, isLoading = false }: MainDataSectionProps) {
+export function MainDataSection({ content = defaultHomeContent }: MainDataSectionProps) {
   const fallbackHeroImageUrl = resolveHomeImageUrl(defaultHomeContent.heroImageUrl);
   const heroImageUrl = resolveHomeImageUrl(content.heroImageUrl);
   const [imageErrorBySrc, setImageErrorBySrc] = useState<Set<string>>(() => new Set());
@@ -21,12 +20,12 @@ export function MainDataSection({ content = defaultHomeContent, isLoading = fals
   }, [heroImageUrl]);
 
   const hasHeroImageError = imageErrorBySrc.has(heroImageUrl);
-  const canUseFallback = !isLoading && heroImageUrl !== fallbackHeroImageUrl && !imageErrorBySrc.has(fallbackHeroImageUrl);
+  const canUseFallback = heroImageUrl !== fallbackHeroImageUrl && !imageErrorBySrc.has(fallbackHeroImageUrl);
   const heroImageSrc = hasHeroImageError ? (canUseFallback ? fallbackHeroImageUrl : '') : heroImageUrl;
 
   return (
     <div className="main-data-container">
-      <section className={`main-data-section ${isLoading ? 'main-data-section--loading' : ''}`} aria-busy={isLoading}>
+      <section className="main-data-section">
         {heroImageSrc ? (
           <img
             key={heroImageSrc}
@@ -42,7 +41,6 @@ export function MainDataSection({ content = defaultHomeContent, isLoading = fals
           />
         ) : null}
         <div className="main-data-section__overlay">
-          {isLoading ? <span className="main-data-section__loading">Loading homepage content…</span> : null}
           <p className="main-data-section__eyebrow">{content.heroEyebrow}</p>
           <h1 className="main-data-section__title">{content.heroTitle}</h1>
           <p className="main-data-section__description">{content.heroDescription}</p>

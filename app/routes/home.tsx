@@ -23,12 +23,12 @@ export const meta: MetaFunction = () => {
 };
 
 export default function Home() {
-  const { content: homeContent, isLoading, error } = useHomeContent();
+  const { content: homeContent, isLoading, error } = useHomeContent({ forceRefresh: true });
 
   return (
     <>
       <NavBar />
-      <MainDataSection content={homeContent} isLoading={isLoading} />
+      <MainDataSection content={homeContent} />
       <CategorySection categories={homeContent.categories} isLoading={isLoading} />
       {error ? <p className="home-content-status" role="status">Home content could not be refreshed. Showing fallback images.</p> : null}
     </>

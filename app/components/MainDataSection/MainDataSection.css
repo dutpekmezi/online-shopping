@@ -29,10 +29,6 @@
   object-position: center;
 }
 
-.main-data-section--loading .main-data-section__image {
-  filter: saturate(0.85);
-}
-
 .main-data-section__overlay {
   max-width: 1200px;
   margin: 0 auto;
@@ -40,16 +36,6 @@
   padding: 6rem 1rem;
   color: #fff;
   text-align: right;
-}
-
-.main-data-section__loading {
-  display: inline-block;
-  margin-bottom: 0.75rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  padding: 0.35rem 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 700;
 }
 
 .main-data-section__eyebrow {
