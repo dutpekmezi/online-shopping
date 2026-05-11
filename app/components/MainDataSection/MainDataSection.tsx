@@ -14,24 +14,33 @@ type MainDataSectionProps = {
 export function MainDataSection({ content = defaultHomeContent, isLoading = false }: MainDataSectionProps) {
   const fallbackHeroImageUrl = resolveHomeImageUrl(defaultHomeContent.heroImageUrl);
   const heroImageUrl = resolveHomeImageUrl(content.heroImageUrl);
-  const [resolvedHeroImageUrl, setResolvedHeroImageUrl] = useState(heroImageUrl);
+  const [imageErrorBySrc, setImageErrorBySrc] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
-    setResolvedHeroImageUrl(heroImageUrl);
+    setImageErrorBySrc(new Set());
   }, [heroImageUrl]);
+
+  const hasHeroImageError = imageErrorBySrc.has(heroImageUrl);
+  const canUseFallback = !isLoading && heroImageUrl !== fallbackHeroImageUrl && !imageErrorBySrc.has(fallbackHeroImageUrl);
+  const heroImageSrc = hasHeroImageError ? (canUseFallback ? fallbackHeroImageUrl : '') : heroImageUrl;
 
   return (
     <div className="main-data-container">
       <section className={`main-data-section ${isLoading ? 'main-data-section--loading' : ''}`} aria-busy={isLoading}>
-        <img
-          className="main-data-section__image"
-          src={resolvedHeroImageUrl}
-          alt="Live edge wood slab furniture"
-          loading="eager"
-          fetchPriority="high"
-          decoding="async"
-          onError={() => setResolvedHeroImageUrl(fallbackHeroImageUrl)}
-        />
+        {heroImageSrc ? (
+          <img
+            key={heroImageSrc}
+            className="main-data-section__image"
+            src={heroImageSrc}
+            alt="Live edge wood slab furniture"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            onError={() => {
+              setImageErrorBySrc((currentImageErrorBySrc) => new Set(currentImageErrorBySrc).add(heroImageSrc));
+            }}
+          />
+        ) : null}
         <div className="main-data-section__overlay">
           {isLoading ? <span className="main-data-section__loading">Loading homepage content…</span> : null}
           <p className="main-data-section__eyebrow">{content.heroEyebrow}</p>
