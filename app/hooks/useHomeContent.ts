@@ -15,6 +15,10 @@ type HomeContentState = {
   error: Error | null;
 };
 
+type LoadHomeContentOptions = {
+  forceRefresh?: boolean;
+};
+
 let cachedHomeContent: HomeContent | null = null;
 let pendingHomeContentRequest: Promise<HomeContent> | null = null;
 
@@ -23,23 +27,27 @@ export function invalidateHomeContentCache() {
   pendingHomeContentRequest = null;
 }
 
+function getInitialHomeContentState(): HomeContentState {
+  return {
+    content: cachedHomeContent ?? defaultHomeContent,
+    isLoading: !cachedHomeContent,
+    error: null,
+  };
+}
+
 async function readHomeContentDocument() {
   const snapshot = await getDoc(doc(db, HOME_CONTENT_COLLECTION, HOME_CONTENT_DOCUMENT_ID));
 
   return snapshot.exists() ? normalizeHomeContent(snapshot.data()) : defaultHomeContent;
 }
 
-export async function loadHomeContent({ forceRefresh = false } = {}) {
-  if (forceRefresh) {
-    invalidateHomeContentCache();
+export async function loadHomeContent({ forceRefresh = false }: LoadHomeContentOptions = {}) {
+  if (!forceRefresh && pendingHomeContentRequest) {
+    return pendingHomeContentRequest;
   }
 
   if (!forceRefresh && cachedHomeContent) {
     return cachedHomeContent;
-  }
-
-  if (!forceRefresh && pendingHomeContentRequest) {
-    return pendingHomeContentRequest;
   }
 
   pendingHomeContentRequest = readHomeContentDocument()
@@ -54,20 +62,17 @@ export async function loadHomeContent({ forceRefresh = false } = {}) {
   return pendingHomeContentRequest;
 }
 
-export function useHomeContent({ forceRefresh = false } = {}) {
-  const [state, setState] = useState<HomeContentState>(() => ({
-    content: forceRefresh ? defaultHomeContent : cachedHomeContent ?? defaultHomeContent,
-    isLoading: forceRefresh || !cachedHomeContent,
-    error: null,
-  }));
+export function useHomeContent({ forceRefresh = false }: LoadHomeContentOptions = {}) {
+  const [state, setState] = useState<HomeContentState>(() => getInitialHomeContentState());
 
   useEffect(() => {
     let isSubscribed = true;
+    const cachedContent = cachedHomeContent;
 
     setState((currentState) => ({
       ...currentState,
-      content: forceRefresh ? defaultHomeContent : currentState.content,
-      isLoading: forceRefresh || !cachedHomeContent,
+      content: cachedContent ?? currentState.content,
+      isLoading: !cachedContent,
       error: null,
     }));
 

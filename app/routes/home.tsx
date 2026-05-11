@@ -29,14 +29,14 @@ export default function Home() {
   const { content: homeContent, isLoading, error } = useHomeContent({ forceRefresh: shouldRefreshHome });
 
   useEffect(() => {
-    if (!shouldRefreshHome || isLoading) {
+    if (!shouldRefreshHome) {
       return;
     }
 
     const nextSearchParams = new URLSearchParams(searchParams);
     nextSearchParams.delete('refreshHome');
     setSearchParams(nextSearchParams, { replace: true });
-  }, [isLoading, searchParams, setSearchParams, shouldRefreshHome]);
+  }, [searchParams, setSearchParams, shouldRefreshHome]);
 
   return (
     <>
