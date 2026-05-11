@@ -214,3 +214,137 @@
 .navbar__profile-button {
   cursor: pointer;
 }
+
+.navbar__social-area {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  position: relative;
+}
+
+.navbar__social-editor {
+  position: relative;
+}
+
+.navbar__social-edit-button {
+  width: 1.45rem;
+  height: 1.45rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.navbar__social-edit-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.navbar__social-editor-panel {
+  position: absolute;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  width: min(20rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  background: #fff;
+  border: 1px solid #e1d7cf;
+  border-radius: 0.75rem;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+  color: #1c1c1c;
+  z-index: 20;
+}
+
+.navbar__social-editor-panel::before {
+  content: "";
+  position: absolute;
+  top: -0.45rem;
+  right: 0.45rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  background: #fff;
+  border-left: 1px solid #e1d7cf;
+  border-top: 1px solid #e1d7cf;
+  transform: rotate(45deg);
+}
+
+.navbar__social-editor-title,
+.navbar__social-editor-message {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.navbar__social-editor-title {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #8d4d24;
+}
+
+.navbar__social-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.navbar__social-input-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #a76437;
+}
+
+.navbar__social-input-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+
+.navbar__social-input-row input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #d8c8bc;
+  border-radius: 0.45rem;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.navbar__social-input-row input:focus {
+  outline: 2px solid rgba(167, 100, 55, 0.25);
+  border-color: #a76437;
+}
+
+.navbar__social-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.navbar__social-editor-actions button {
+  border: 0;
+  border-radius: 999px;
+  background: #a76437;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.45rem 0.95rem;
+}
+
+.navbar__social-editor-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.navbar__social-editor-message {
+  color: #5f4a3d;
+}
