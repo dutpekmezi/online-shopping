@@ -123,7 +123,7 @@ async function deleteUnusedHomeImages(previousContent: HomeContent, nextContent:
 function getCategoryCount(formData: FormData) {
   const categoryCount = Number(formData.get('categoryCount'));
 
-  return Number.isInteger(categoryCount) && categoryCount > 0 ? Math.min(categoryCount, 50) : defaultHomeContent.categories.length;
+  return Number.isInteger(categoryCount) && categoryCount >= 0 ? Math.min(categoryCount, 50) : defaultHomeContent.categories.length;
 }
 
 async function fetchAvailableProductCategories(adminDb: Firestore) {
@@ -168,13 +168,13 @@ export async function action({ request }: Route.ActionArgs) {
       ? await uploadHomeImage(selectedHeroImage, 'hero')
       : String(formData.get('heroImageUrl') ?? defaultHomeContent.heroImageUrl).trim() || defaultHomeContent.heroImageUrl;
 
-    const availableProductCategories = await fetchAvailableProductCategories(adminDb);
+    const categoryCount = getCategoryCount(formData);
+    const availableProductCategories = categoryCount > 0 ? await fetchAvailableProductCategories(adminDb) : new Set<string>();
 
-    if (availableProductCategories.size === 0) {
+    if (categoryCount > 0 && availableProductCategories.size === 0) {
       return { message: 'Collections içinde kayıtlı bir kategori bulunamadı. Önce ürünlere kategori ekleyin.', success: false } satisfies ActionData;
     }
 
-    const categoryCount = getCategoryCount(formData);
     const categories = await Promise.all(
       Array.from({ length: categoryCount }, async (_item, index) => {
         const fallbackCategory = previousContent.categories[index] ?? defaultHomeContent.categories[index] ?? defaultHomeContent.categories[0];
@@ -304,6 +304,23 @@ function EditHomeContent() {
     }
   };
 
+  const removeCategoryCard = (indexToRemove: number) => {
+    setHomeContent((content) => ({
+      ...content,
+      categories: content.categories.filter((_category, index) => index !== indexToRemove),
+    }));
+    setHomeImagePreviews((previews) => ({
+      ...previews,
+      categories: Object.fromEntries(
+        Object.entries(previews.categories)
+          .map(([index, previewUrl]) => [Number(index), previewUrl] as const)
+          .filter(([index]) => index !== indexToRemove)
+          .map(([index, previewUrl]) => [index > indexToRemove ? index - 1 : index, previewUrl]),
+      ),
+    }));
+    setSubmitError(null);
+  };
+
   const addCategoryCard = () => {
     const nextTitle = collectionCategories[0];
 
@@ -337,8 +354,8 @@ function EditHomeContent() {
       return;
     }
 
-    if (collectionCategories.length === 0) {
-      setSubmitError('Kaydetmek için Collections içinde kayıtlı en az bir kategori olmalı.');
+    if (homeContent.categories.length > 0 && collectionCategories.length === 0) {
+      setSubmitError('Kategori kartı kaydetmek için Collections içinde kayıtlı en az bir kategori olmalı.');
       return;
     }
 
@@ -454,7 +471,7 @@ function EditHomeContent() {
             <div className="edit-home-section-heading">
               <div>
                 <h2>Kategoriler</h2>
-                <p className="edit-home-help-text">Kategori adları sadece Collections sayfasındaki ürün kategorilerinden seçilebilir.</p>
+                <p className="edit-home-help-text">Kategori adları sadece Collections sayfasındaki ürün kategorilerinden seçilebilir; istemediğiniz kartları silebilirsiniz.</p>
               </div>
               <button
                 className="edit-home-secondary-button"
@@ -471,8 +488,23 @@ function EditHomeContent() {
             {!isLoadingCollectionCategories && collectionCategories.length === 0 ? (
               <p className="edit-home-message edit-home-message--error">Collections içinde seçilebilir kategori bulunamadı.</p>
             ) : null}
+            {homeContent.categories.length === 0 ? (
+              <p className="edit-home-message">Home sayfasında gösterilecek kategori kartı yok. Yeni kart eklemek için yukarıdaki butonu kullanın.</p>
+            ) : null}
             {homeContent.categories.map((category, index) => (
               <div className="edit-home-category" key={`${category.id}-${index}`}>
+                <div className="edit-home-category-heading">
+                  <h3>Kategori kartı {index + 1}</h3>
+                  <button
+                    className="edit-home-delete-button"
+                    type="button"
+                    onClick={() => removeCategoryCard(index)}
+                    disabled={isOptimizingImages}
+                    aria-label={`${category.title} kategori kartını sil`}
+                  >
+                    Sil
+                  </button>
+                </div>
                 <label>
                   Kategori adı {index + 1}
                   <select

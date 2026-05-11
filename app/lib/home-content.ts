@@ -101,9 +101,10 @@ export function normalizeHomeContent(value: unknown): HomeContent {
   }
 
   const data = value as Record<string, unknown>;
-  const rawCategories = Array.isArray(data.categories) ? data.categories : [];
+  const hasSavedCategories = Array.isArray(data.categories);
+  const rawCategories = hasSavedCategories ? (data.categories as unknown[]) : [];
   const sectionImages = Array.isArray(data.sectionImages) ? data.sectionImages : [];
-  const categories = rawCategories.length
+  const categories: HomeCategoryContent[] = hasSavedCategories
     ? rawCategories.map((rawCategory, index) => {
         const category = rawCategory && typeof rawCategory === 'object' ? (rawCategory as Record<string, unknown>) : {};
         const fallback = defaultHomeContent.categories[index] ?? defaultHomeContent.categories[0];
@@ -129,8 +130,8 @@ export function normalizeHomeContent(value: unknown): HomeContent {
     heroEyebrow: toStringField(data.heroEyebrow, defaultHomeContent.heroEyebrow),
     heroTitle: toStringField(data.heroTitle, defaultHomeContent.heroTitle),
     heroDescription: toStringField(data.heroDescription, defaultHomeContent.heroDescription),
-    categories: categories.length ? categories : defaultHomeContent.categories,
-    sectionImages: categories.length ? categories.map((category) => category.imageUrl) : defaultHomeContent.sectionImages,
+    categories,
+    sectionImages: categories.map((category) => category.imageUrl),
     updatedAt: data.updatedAt,
   };
 }
