@@ -1,0 +1,95 @@
+.edit-home-page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+  font-family: 'Inter', sans-serif;
+}
+
+.edit-home-page h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.8rem;
+}
+
+.edit-home-page p {
+  color: #555;
+  margin: 0 0 1.25rem;
+}
+
+.edit-home-form,
+.edit-home-section,
+.edit-home-category {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.edit-home-section {
+  border: 1px solid #ddd;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #fff;
+}
+
+.edit-home-section h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.edit-home-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.edit-home-form input,
+.edit-home-form textarea {
+  width: 100%;
+  border: 1px solid #cfcfcf;
+  font: inherit;
+  padding: 0.65rem;
+}
+
+.edit-home-category {
+  border-top: 1px solid #eee;
+  padding-top: 0.9rem;
+}
+
+.edit-home-category:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.edit-home-actions {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.edit-home-save,
+.edit-home-link {
+  border: 0;
+  background: #000;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+}
+
+.edit-home-link {
+  background: #777;
+}
+
+.edit-home-message {
+  margin: 0;
+  font-weight: 700;
+}
+
+.edit-home-message--success {
+  color: #157347;
+}
+
+.edit-home-message--error {
+  color: #b42318;
+}
