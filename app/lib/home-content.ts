@@ -60,13 +60,23 @@ export const defaultHomeContent: HomeContent = {
   sectionImages: defaultHomeCategories.map((category) => category.imageUrl),
 };
 
+const localHomeImageUrls = import.meta.glob('../Images/*', { eager: true, query: '?url', import: 'default' }) as Record<
+  string,
+  string
+>;
+
 export function resolveHomeImageUrl(imageUrl: string) {
-  if (imageUrl.startsWith('App/Images/')) {
-    const fileName = imageUrl.replace('App/Images/', '');
-    return new URL(`../Images/${fileName}`, import.meta.url).href;
+  const normalizedImageUrl = imageUrl.trim();
+  const localImagePrefix = 'App/Images/';
+
+  if (normalizedImageUrl.startsWith(localImagePrefix)) {
+    const fileName = normalizedImageUrl.slice(localImagePrefix.length);
+    const localImageUrl = localHomeImageUrls[`../Images/${fileName}`];
+
+    return localImageUrl ?? normalizedImageUrl;
   }
 
-  return imageUrl;
+  return normalizedImageUrl;
 }
 
 function toStringField(value: unknown, fallback: string) {
