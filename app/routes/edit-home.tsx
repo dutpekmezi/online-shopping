@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import type { Firestore } from 'firebase-admin/firestore';
 import { Form, redirect, useActionData, useSubmit } from 'react-router';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { NavBar } from '../components/NavBar/NavBar';
@@ -16,6 +17,7 @@ import {
 } from '../lib/home-content';
 import { invalidateHomeContentCache, useHomeContent } from '../hooks/useHomeContent';
 import { optimizeHomeImageFile } from '../lib/home-image-optimizer.client';
+import { fetchProductCategories } from '../lib/products';
 import editHomeStylesHref from './edit-home.css?url';
 import type { Route } from './+types/edit-home';
 
@@ -30,6 +32,7 @@ type ActionData = {
 };
 
 const HOME_STORAGE_FOLDER = 'home';
+const PRODUCTS_COLLECTION = 'products';
 
 function slugify(value: string) {
   return value
@@ -117,6 +120,22 @@ async function deleteUnusedHomeImages(previousContent: HomeContent, nextContent:
   );
 }
 
+function getCategoryCount(formData: FormData) {
+  const categoryCount = Number(formData.get('categoryCount'));
+
+  return Number.isInteger(categoryCount) && categoryCount > 0 ? Math.min(categoryCount, 50) : defaultHomeContent.categories.length;
+}
+
+async function fetchAvailableProductCategories(adminDb: Firestore) {
+  const snapshot = await adminDb.collection(PRODUCTS_COLLECTION).get();
+  const categories = snapshot.docs
+    .map((doc) => doc.data().category)
+    .filter((category): category is string => typeof category === 'string' && Boolean(category.trim()))
+    .map((category) => category.trim());
+
+  return new Set(categories);
+}
+
 function getSelectedFile(formData: FormData, fieldName: string) {
   const file = formData.get(fieldName);
 
@@ -149,16 +168,29 @@ export async function action({ request }: Route.ActionArgs) {
       ? await uploadHomeImage(selectedHeroImage, 'hero')
       : String(formData.get('heroImageUrl') ?? defaultHomeContent.heroImageUrl).trim() || defaultHomeContent.heroImageUrl;
 
+    const availableProductCategories = await fetchAvailableProductCategories(adminDb);
+
+    if (availableProductCategories.size === 0) {
+      return { message: 'Collections içinde kayıtlı bir kategori bulunamadı. Önce ürünlere kategori ekleyin.', success: false } satisfies ActionData;
+    }
+
+    const categoryCount = getCategoryCount(formData);
     const categories = await Promise.all(
-      defaultHomeContent.categories.map(async (category, index) => {
-        const title = String(formData.get(`categoryTitle-${index}`) ?? category.title).trim() || category.title;
+      Array.from({ length: categoryCount }, async (_item, index) => {
+        const fallbackCategory = previousContent.categories[index] ?? defaultHomeContent.categories[index] ?? defaultHomeContent.categories[0];
+        const title = String(formData.get(`categoryTitle-${index}`) ?? '').trim();
+
+        if (!title || !availableProductCategories.has(title)) {
+          throw new Error(`Invalid home category: ${title || '(empty)'}`);
+        }
+
         const selectedCategoryImage = getSelectedFile(formData, `categoryImageFile-${index}`);
         const imageUrl = selectedCategoryImage
           ? await uploadHomeImage(selectedCategoryImage, `category-${index + 1}`)
-          : String(formData.get(`categoryImageUrl-${index}`) ?? category.imageUrl).trim() || category.imageUrl;
+          : String(formData.get(`categoryImageUrl-${index}`) ?? fallbackCategory.imageUrl).trim() || fallbackCategory.imageUrl;
 
         return {
-          id: slugify(title) || category.id,
+          id: slugify(title) || fallbackCategory.id,
           title,
           imageUrl,
         };
@@ -187,6 +219,10 @@ export async function action({ request }: Route.ActionArgs) {
   } catch (error) {
     console.error('Home content could not be saved.', error);
 
+    if (error instanceof Error && error.message.startsWith('Invalid home category:')) {
+      return { message: 'Kategori adları sadece Collections içindeki kategorilerden seçilebilir.', success: false } satisfies ActionData;
+    }
+
     return { message: 'Home içeriği kaydedilemedi. Lütfen tekrar deneyin.', success: false } satisfies ActionData;
   }
 
@@ -200,6 +236,9 @@ function EditHomeContent() {
     categories: {},
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [collectionCategories, setCollectionCategories] = useState<string[]>([]);
+  const [isLoadingCollectionCategories, setIsLoadingCollectionCategories] = useState(true);
+  const [collectionCategoriesError, setCollectionCategoriesError] = useState<string | null>(null);
   const [isOptimizingImages, setIsOptimizingImages] = useState(false);
   const actionData = useActionData<ActionData>();
   const submit = useSubmit();
@@ -214,6 +253,37 @@ function EditHomeContent() {
       setIsOptimizingImages(false);
     }
   }, [actionData]);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    setIsLoadingCollectionCategories(true);
+    setCollectionCategoriesError(null);
+
+    fetchProductCategories()
+      .then((categories) => {
+        if (isSubscribed) {
+          setCollectionCategories(categories);
+        }
+      })
+      .catch((error) => {
+        console.error('Collection categories could not be loaded.', error);
+
+        if (isSubscribed) {
+          setCollectionCategories([]);
+          setCollectionCategoriesError('Collections kategorileri yüklenemedi. Lütfen ürün okuma izinlerini kontrol edin.');
+        }
+      })
+      .finally(() => {
+        if (isSubscribed) {
+          setIsLoadingCollectionCategories(false);
+        }
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
 
   const handleHeroImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -234,6 +304,29 @@ function EditHomeContent() {
     }
   };
 
+  const addCategoryCard = () => {
+    const nextTitle = collectionCategories[0];
+
+    if (!nextTitle) {
+      setSubmitError('Yeni kart eklemek için önce Collections içinde en az bir kategori olmalı.');
+      return;
+    }
+
+    const fallbackCategory = defaultHomeContent.categories[homeContent.categories.length % defaultHomeContent.categories.length];
+
+    setHomeContent((content) => ({
+      ...content,
+      categories: [
+        ...content.categories,
+        {
+          id: slugify(nextTitle),
+          title: nextTitle,
+          imageUrl: fallbackCategory.imageUrl,
+        },
+      ],
+    }));
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -241,6 +334,18 @@ function EditHomeContent() {
 
     if (!user) {
       setSubmitError('Kaydetmek için admin olarak giriş yapmalısınız.');
+      return;
+    }
+
+    if (collectionCategories.length === 0) {
+      setSubmitError('Kaydetmek için Collections içinde kayıtlı en az bir kategori olmalı.');
+      return;
+    }
+
+    const invalidCategory = homeContent.categories.find((category) => !collectionCategories.includes(category.title));
+
+    if (invalidCategory) {
+      setSubmitError(`Kategori kartları sadece Collections kategorilerinden seçilebilir: ${invalidCategory.title}`);
       return;
     }
 
@@ -348,20 +453,51 @@ function EditHomeContent() {
           </section>
 
           <section className="edit-home-section">
-            <h2>Kategoriler</h2>
+            <div className="edit-home-section-heading">
+              <div>
+                <h2>Kategoriler</h2>
+                <p className="edit-home-help-text">Kategori adları sadece Collections sayfasındaki ürün kategorilerinden seçilebilir.</p>
+              </div>
+              <button
+                className="edit-home-secondary-button"
+                type="button"
+                onClick={addCategoryCard}
+                disabled={isLoadingCollectionCategories || collectionCategories.length === 0}
+              >
+                Yeni kategori kartı ekle
+              </button>
+            </div>
+            <input type="hidden" name="categoryCount" value={homeContent.categories.length} readOnly />
+            {isLoadingCollectionCategories ? <p className="edit-home-message">Collections kategorileri yükleniyor…</p> : null}
+            {collectionCategoriesError ? <p className="edit-home-message edit-home-message--error">{collectionCategoriesError}</p> : null}
+            {!isLoadingCollectionCategories && collectionCategories.length === 0 ? (
+              <p className="edit-home-message edit-home-message--error">Collections içinde seçilebilir kategori bulunamadı.</p>
+            ) : null}
             {homeContent.categories.map((category, index) => (
               <div className="edit-home-category" key={`${category.id}-${index}`}>
                 <label>
                   Kategori adı {index + 1}
-                  <input
+                  <select
                     name={`categoryTitle-${index}`}
                     value={category.title}
                     onChange={(event) => {
+                      const nextTitle = event.target.value;
                       const nextCategories = [...homeContent.categories];
-                      nextCategories[index] = { ...category, title: event.target.value };
+                      nextCategories[index] = { ...category, id: slugify(nextTitle), title: nextTitle };
                       setHomeContent((content) => ({ ...content, categories: nextCategories }));
                     }}
-                  />
+                  >
+                    {!collectionCategories.includes(category.title) ? (
+                      <option value={category.title} disabled>
+                        Seçilemez: {category.title}
+                      </option>
+                    ) : null}
+                    {collectionCategories.map((collectionCategory) => (
+                      <option key={collectionCategory} value={collectionCategory}>
+                        {collectionCategory}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <input type="hidden" name={`categoryImageUrl-${index}`} value={category.imageUrl} readOnly />
                 <label>
