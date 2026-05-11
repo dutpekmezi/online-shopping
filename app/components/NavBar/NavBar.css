@@ -348,3 +348,39 @@
 .navbar__social-editor-message {
   color: #5f4a3d;
 }
+
+.navbar__email-link {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.navbar__email-link:hover {
+  text-decoration: underline;
+}
+
+.navbar__contact-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5f4a3d;
+}
+
+.navbar__contact-input-row input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #d8c8bc;
+  border-radius: 0.45rem;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1c1c1c;
+}
+
+.navbar__contact-input-row input:focus {
+  outline: 2px solid rgba(167, 100, 55, 0.25);
+  border-color: #a76437;
+}

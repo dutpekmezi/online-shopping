@@ -12,6 +12,8 @@ export function links() {
 
 const SITE_CONTENT_COLLECTION = "siteContent";
 const SOCIAL_LINKS_DOCUMENT_ID = "navbarSocialLinks";
+const DEFAULT_CONTACT_EMAIL = "info@example.com";
+const DEFAULT_CONTACT_PHONE = "(515) 832-8733";
 
 const topLinks = [
   { label: "Shop", to: "/shop" },
@@ -33,6 +35,11 @@ type SocialLink = {
 };
 
 type SocialLinkValues = Record<SocialNetwork, string>;
+
+type ContactLinkValues = {
+  email: string;
+  phone: string;
+};
 
 const socialLinks: SocialLink[] = [
   {
@@ -72,6 +79,11 @@ const defaultSocialLinkValues = socialLinks.reduce((values, link) => {
   return values;
 }, {} as SocialLinkValues);
 
+const defaultContactLinkValues: ContactLinkValues = {
+  email: DEFAULT_CONTACT_EMAIL,
+  phone: DEFAULT_CONTACT_PHONE,
+};
+
 function normalizeHref(value: string, fallback: string) {
   const trimmedValue = value.trim();
 
@@ -86,6 +98,24 @@ function normalizeHref(value: string, fallback: string) {
   return `https://${trimmedValue}`;
 }
 
+function normalizeEmailAddress(value: string, fallback = DEFAULT_CONTACT_EMAIL) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return fallback;
+  }
+
+  return trimmedValue.replace(/^mailto:/i, "");
+}
+
+function createMailToHref(emailAddress: string) {
+  return `mailto:${normalizeEmailAddress(emailAddress)}`;
+}
+
+function normalizePhoneNumber(value: string, fallback = DEFAULT_CONTACT_PHONE) {
+  return value.trim() || fallback;
+}
+
 function normalizeSocialLinks(value: unknown): SocialLinkValues {
   const data = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 
@@ -94,6 +124,15 @@ function normalizeSocialLinks(value: unknown): SocialLinkValues {
     values[link.id] = typeof rawHref === "string" ? normalizeHref(rawHref, link.defaultHref) : link.defaultHref;
     return values;
   }, {} as SocialLinkValues);
+}
+
+function normalizeContactLinks(value: unknown): ContactLinkValues {
+  const data = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
+  return {
+    email: typeof data.email === "string" ? normalizeEmailAddress(data.email) : defaultContactLinkValues.email,
+    phone: typeof data.phone === "string" ? normalizePhoneNumber(data.phone) : defaultContactLinkValues.phone,
+  };
 }
 
 function SocialIcon({
@@ -116,6 +155,8 @@ export function NavBar() {
   const { isAdmin } = useAuth();
   const [socialLinkValues, setSocialLinkValues] = useState<SocialLinkValues>(defaultSocialLinkValues);
   const [draftSocialLinkValues, setDraftSocialLinkValues] = useState<SocialLinkValues>(defaultSocialLinkValues);
+  const [contactLinkValues, setContactLinkValues] = useState<ContactLinkValues>(defaultContactLinkValues);
+  const [draftContactLinkValues, setDraftContactLinkValues] = useState<ContactLinkValues>(defaultContactLinkValues);
   const [isSocialEditorOpen, setIsSocialEditorOpen] = useState(false);
   const [socialEditorMessage, setSocialEditorMessage] = useState<string | null>(null);
   const [isSavingSocialLinks, setIsSavingSocialLinks] = useState(false);
@@ -131,8 +172,11 @@ export function NavBar() {
         }
 
         const nextSocialLinkValues = normalizeSocialLinks(snapshot.data());
+        const nextContactLinkValues = normalizeContactLinks(snapshot.data());
         setSocialLinkValues(nextSocialLinkValues);
         setDraftSocialLinkValues(nextSocialLinkValues);
+        setContactLinkValues(nextContactLinkValues);
+        setDraftContactLinkValues(nextContactLinkValues);
       })
       .catch((error) => {
         console.error("Navbar social links could not be loaded.", error);
@@ -168,12 +212,17 @@ export function NavBar() {
       values[link.id] = normalizeHref(draftSocialLinkValues[link.id], link.defaultHref);
       return values;
     }, {} as SocialLinkValues);
+    const nextContactLinkValues: ContactLinkValues = {
+      email: normalizeEmailAddress(draftContactLinkValues.email),
+      phone: normalizePhoneNumber(draftContactLinkValues.phone),
+    };
 
     try {
       await setDoc(
         doc(db, SITE_CONTENT_COLLECTION, SOCIAL_LINKS_DOCUMENT_ID),
         {
           ...nextSocialLinkValues,
+          ...nextContactLinkValues,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -181,10 +230,12 @@ export function NavBar() {
 
       setSocialLinkValues(nextSocialLinkValues);
       setDraftSocialLinkValues(nextSocialLinkValues);
-      setSocialEditorMessage("Sosyal medya linkleri kaydedildi.");
+      setContactLinkValues(nextContactLinkValues);
+      setDraftContactLinkValues(nextContactLinkValues);
+      setSocialEditorMessage("Sosyal medya ve iletişim bilgileri kaydedildi.");
     } catch (error) {
-      console.error("Navbar social links could not be saved.", error);
-      setSocialEditorMessage("Linkler kaydedilemedi. Admin yetkinizi kontrol edin.");
+      console.error("Navbar social and contact links could not be saved.", error);
+      setSocialEditorMessage("Linkler ve iletişim bilgileri kaydedilemedi. Admin yetkinizi kontrol edin.");
     } finally {
       setIsSavingSocialLinks(false);
     }
@@ -195,9 +246,11 @@ export function NavBar() {
       <div className="navbar__contact-row">
         <div className="navbar__contact-content">
           <div className="navbar__contact-info">
-            <span>E-mail us</span>
+            <a className="navbar__email-link" href={createMailToHref(contactLinkValues.email)}>
+              E-mail us
+            </a>
             <span className="navbar__divider">|</span>
-            <span>(515) 832-8733</span>
+            <span>{contactLinkValues.phone}</span>
           </div>
 
           <div className="navbar__social-area">
@@ -218,6 +271,7 @@ export function NavBar() {
                   aria-expanded={isSocialEditorOpen}
                   onClick={() => {
                     setDraftSocialLinkValues(socialLinkValues);
+                    setDraftContactLinkValues(contactLinkValues);
                     setSocialEditorMessage(null);
                     setIsSocialEditorOpen((isOpen) => !isOpen);
                   }}
@@ -227,7 +281,7 @@ export function NavBar() {
 
                 {isSocialEditorOpen ? (
                   <form className="navbar__social-editor-panel" onSubmit={handleSocialLinksSubmit}>
-                    <p className="navbar__social-editor-title">Social media links</p>
+                    <p className="navbar__social-editor-title">Social media & contact</p>
                     {socialLinks.map((socialLink) => (
                       <label className="navbar__social-input-row" key={socialLink.id}>
                         <span className="navbar__social-input-icon" aria-hidden="true">
@@ -249,6 +303,37 @@ export function NavBar() {
                         />
                       </label>
                     ))}
+
+                    <label className="navbar__contact-input-row">
+                      <span>E-mail gönderim adresi</span>
+                      <input
+                        type="email"
+                        value={draftContactLinkValues.email}
+                        aria-label="E-mail gönderim adresi"
+                        placeholder="info@example.com"
+                        onChange={(event) => {
+                          setDraftContactLinkValues((currentValues) => ({
+                            ...currentValues,
+                            email: event.target.value,
+                          }));
+                        }}
+                      />
+                    </label>
+                    <label className="navbar__contact-input-row">
+                      <span>Telefon numarası</span>
+                      <input
+                        type="tel"
+                        value={draftContactLinkValues.phone}
+                        aria-label="E-mail us yanındaki telefon numarası"
+                        placeholder="(515) 832-8733"
+                        onChange={(event) => {
+                          setDraftContactLinkValues((currentValues) => ({
+                            ...currentValues,
+                            phone: event.target.value,
+                          }));
+                        }}
+                      />
+                    </label>
                     <div className="navbar__social-editor-actions">
                       <button type="submit" disabled={isSavingSocialLinks}>
                         {isSavingSocialLinks ? "Saving..." : "Save"}
