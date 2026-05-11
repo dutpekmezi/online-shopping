@@ -4,7 +4,7 @@ import { useAuth } from "~/hooks/useAuth";
 
 export function AuthStatus() {
   const navigate = useNavigate();
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, isAdmin } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -45,6 +45,16 @@ export function AuthStatus() {
               <Link to="/account" className="navbar__profile-item" role="menuitem" onClick={() => setIsOpen(false)}>
                 Account
               </Link>
+              {isAdmin ? (
+                <>
+                  <Link to="/add-product" className="navbar__profile-item" role="menuitem" onClick={() => setIsOpen(false)}>
+                    Add Product
+                  </Link>
+                  <Link to="/edit-home" className="navbar__profile-item" role="menuitem" onClick={() => setIsOpen(false)}>
+                    Edit Home
+                  </Link>
+                </>
+              ) : null}
               <button
                 type="button"
                 className="navbar__profile-item navbar__profile-button"

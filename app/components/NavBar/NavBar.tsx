@@ -1,7 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link } from "react-router";
 import { AuthStatus } from "~/components/auth/AuthStatus";
-import { useAuth } from "~/hooks/useAuth";
 import style from "./NavBar.css?url";
 
 export function links() {
@@ -36,9 +35,6 @@ function SocialIcon({
 }
 
 export function NavBar() {
-  const { isAdmin } = useAuth();
-  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
-
   return (
     <header className="navbar">
       <div className="navbar__contact-row">
@@ -82,24 +78,6 @@ export function NavBar() {
               {link.label}
             </Link>
           ))}
-          {isAdmin ? (
-            <div className="navbar__admin-menu">
-              <button
-                type="button"
-                className="navbar__admin-button"
-                aria-expanded={isAdminMenuOpen}
-                onClick={() => setIsAdminMenuOpen((isOpen) => !isOpen)}
-              >
-                Admin
-              </button>
-              {isAdminMenuOpen ? (
-                <div className="navbar__admin-panel">
-                  <Link to="/add-product" className="navbar__admin-item">Add Product</Link>
-                  <Link to="/edit-home" className="navbar__admin-item">Edit Home</Link>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </nav>
 
         <div className="navbar__actions" aria-label="Quick actions">
