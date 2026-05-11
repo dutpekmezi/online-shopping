@@ -57,6 +57,7 @@ type StoredProduct = {
   title: string;
   description: string;
   imageUrl: string;
+  imageUrls: string[];
   category: string;
   basePrice: string;
   pricingState: ProductPricingState;
@@ -71,7 +72,10 @@ export async function action({ request }: Route.ActionArgs) {
   const serializedPricingState = String(formData.get('pricingState') ?? '{}');
   const selectedCategory = String(formData.get('category') ?? '').trim();
   const newCategory = String(formData.get('newCategory') ?? '').trim();
-  const photo = formData.get('photos');
+  const photos = formData
+    .getAll('photos')
+    .filter((photo): photo is File => photo instanceof File && photo.size > 0)
+    .slice(0, 10);
 
   const category = newCategory || selectedCategory;
 
@@ -111,36 +115,45 @@ export async function action({ request }: Route.ActionArgs) {
   const db = await getAdminFirestore();
   const nextProductId = randomUUID();
 
-  let imageUrl = 'App/Images/MainSectionImage.JPG';
+  const uploadedImageUrls: string[] = [];
 
-  if (photo instanceof File && photo.size > 0) {
+  if (photos.length > 0) {
     const bucket = await getAdminStorageBucket();
-    const imageFileName = createStorageFileName(photo.name);
-    const storagePath = `products/${nextProductId}/${imageFileName}`;
-    const imageFile = bucket.file(storagePath);
-    const downloadToken = randomUUID();
-    const imageBuffer = Buffer.from(await photo.arrayBuffer());
 
-    await imageFile.save(imageBuffer, {
-      metadata: {
-        contentType: photo.type || 'application/octet-stream',
+    for (const photo of photos) {
+      const imageFileName = createStorageFileName(photo.name);
+      const storagePath = `products/${nextProductId}/${imageFileName}`;
+      const imageFile = bucket.file(storagePath);
+      const downloadToken = randomUUID();
+      const imageBuffer = Buffer.from(await photo.arrayBuffer());
+
+      await imageFile.save(imageBuffer, {
         metadata: {
-          firebaseStorageDownloadTokens: downloadToken,
+          contentType: photo.type || 'application/octet-stream',
+          metadata: {
+            firebaseStorageDownloadTokens: downloadToken,
+          },
         },
-      },
-      resumable: false,
-    });
+        resumable: false,
+      });
 
-    imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
-      storagePath,
-    )}?alt=media&token=${downloadToken}`;
+      uploadedImageUrls.push(
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+          storagePath,
+        )}?alt=media&token=${downloadToken}`,
+      );
+    }
   }
+
+  const imageUrls = uploadedImageUrls.length > 0 ? uploadedImageUrls : ['App/Images/MainSectionImage.JPG'];
+  const imageUrl = imageUrls[0];
 
   const draftProduct: StoredProduct = {
     productId: nextProductId,
     title,
     description,
     imageUrl,
+    imageUrls,
     category,
     basePrice,
     pricingState,
@@ -233,7 +246,12 @@ function AddProductContent() {
       return;
     }
 
-    setPhotos(Array.from(event.target.files));
+    const selectedPhotos = Array.from(event.target.files).slice(0, 10);
+    setPhotos(selectedPhotos);
+
+    if (event.target.files.length > 10) {
+      window.alert('En fazla 10 fotoğraf ekleyebilirsiniz. İlk 10 fotoğraf kaydedilecek.');
+    }
   };
 
   const refreshCombinations = (groups: VariationGroup[]) => {
@@ -420,6 +438,7 @@ function AddProductContent() {
             <label>
               Photos
               <input type="file" accept="image/*" multiple name="photos" onChange={handlePhotoChange} />
+              <span className="hint">En fazla 10 fotoğraf ekleyebilirsiniz.</span>
             </label>
 
             {photos.length > 0 && (
