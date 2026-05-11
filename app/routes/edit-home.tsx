@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { randomUUID } from 'node:crypto';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Form, Link, useActionData, useSubmit } from 'react-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { AuthGuard } from '../components/auth/AuthGuard';
@@ -11,6 +12,7 @@ import {
   HOME_CONTENT_COLLECTION,
   HOME_CONTENT_DOCUMENT_ID,
   normalizeHomeContent,
+  resolveHomeImageUrl,
   type HomeContent,
 } from '../lib/home-content';
 import editHomeStylesHref from './edit-home.css?url';
@@ -26,12 +28,98 @@ type ActionData = {
   message: string;
 };
 
+const HOME_STORAGE_FOLDER = 'home';
+
 function slugify(value: string) {
   return value
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function toSafeFileName(fileName: string) {
+  const safeFileName = fileName.trim().replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-');
+
+  return safeFileName || 'home-image';
+}
+
+function createStorageFileName(fileName: string) {
+  return `${Date.now()}-${randomUUID()}-${toSafeFileName(fileName)}`;
+}
+
+function getHomeImages(content: HomeContent) {
+  return [content.heroImage, ...content.categories.map((category) => category.image)];
+}
+
+function getHomeStoragePathFromUrl(imageUrl: string, bucketName: string) {
+  try {
+    const url = new URL(imageUrl);
+    const firebasePathMatch = url.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+    const encodedPath = firebasePathMatch?.[2];
+    const urlBucketName = firebasePathMatch?.[1];
+
+    if (!encodedPath || urlBucketName !== bucketName) {
+      return null;
+    }
+
+    const storagePath = decodeURIComponent(encodedPath);
+
+    return storagePath.startsWith(`${HOME_STORAGE_FOLDER}/`) ? storagePath : null;
+  } catch {
+    return null;
+  }
+}
+
+async function uploadHomeImage(file: File, slotName: string) {
+  const { getAdminStorageBucket } = await import('../lib/firebase-admin.server');
+  const bucket = await getAdminStorageBucket();
+  const imageFileName = createStorageFileName(file.name);
+  const storagePath = `${HOME_STORAGE_FOLDER}/${slotName}-${imageFileName}`;
+  const imageFile = bucket.file(storagePath);
+  const downloadToken = randomUUID();
+  const imageBuffer = Buffer.from(await file.arrayBuffer());
+
+  await imageFile.save(imageBuffer, {
+    metadata: {
+      contentType: file.type || 'application/octet-stream',
+      metadata: {
+        firebaseStorageDownloadTokens: downloadToken,
+      },
+    },
+    resumable: false,
+  });
+
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+    storagePath,
+  )}?alt=media&token=${downloadToken}`;
+}
+
+async function deleteUnusedHomeImages(previousContent: HomeContent, nextContent: HomeContent) {
+  const { getAdminStorageBucket } = await import('../lib/firebase-admin.server');
+  const bucket = await getAdminStorageBucket();
+  const nextImageUrls = new Set(getHomeImages(nextContent));
+  const unusedStoragePaths = Array.from(new Set(getHomeImages(previousContent)))
+    .filter((imageUrl) => !nextImageUrls.has(imageUrl))
+    .map((imageUrl) => getHomeStoragePathFromUrl(imageUrl, bucket.name))
+    .filter((path): path is string => Boolean(path));
+
+  await Promise.all(
+    unusedStoragePaths.map((storagePath) =>
+      bucket
+        .file(storagePath)
+        .delete({ ignoreNotFound: true })
+        .catch((error) => {
+          console.error(`Unused home image could not be deleted: ${storagePath}`, error);
+        }),
+    ),
+  );
+}
+
+function getSelectedFile(formData: FormData, fieldName: string) {
+  const file = formData.get(fieldName);
+
+  return file instanceof File && file.size > 0 ? file : null;
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -50,19 +138,33 @@ export async function action({ request }: Route.ActionArgs) {
     return { message: 'Bu işlem için admin yetkisi gerekli.', success: false } satisfies ActionData;
   }
 
-  const categories = defaultHomeContent.categories.map((category, index) => {
-    const title = String(formData.get(`categoryTitle-${index}`) ?? category.title).trim() || category.title;
-    const image = String(formData.get(`categoryImage-${index}`) ?? category.image).trim() || category.image;
+  const adminDb = await getAdminFirestore();
+  const homeContentRef = adminDb.collection(HOME_CONTENT_COLLECTION).doc(HOME_CONTENT_DOCUMENT_ID);
+  const previousSnapshot = await homeContentRef.get();
+  const previousContent = previousSnapshot.exists ? normalizeHomeContent(previousSnapshot.data()) : defaultHomeContent;
+  const selectedHeroImage = getSelectedFile(formData, 'heroImageFile');
+  const heroImage = selectedHeroImage
+    ? await uploadHomeImage(selectedHeroImage, 'hero')
+    : String(formData.get('heroImage') ?? defaultHomeContent.heroImage).trim() || defaultHomeContent.heroImage;
 
-    return {
-      id: slugify(title) || category.id,
-      title,
-      image,
-    };
-  });
+  const categories = await Promise.all(
+    defaultHomeContent.categories.map(async (category, index) => {
+      const title = String(formData.get(`categoryTitle-${index}`) ?? category.title).trim() || category.title;
+      const selectedCategoryImage = getSelectedFile(formData, `categoryImageFile-${index}`);
+      const image = selectedCategoryImage
+        ? await uploadHomeImage(selectedCategoryImage, `category-${index + 1}`)
+        : String(formData.get(`categoryImage-${index}`) ?? category.image).trim() || category.image;
+
+      return {
+        id: slugify(title) || category.id,
+        title,
+        image,
+      };
+    }),
+  );
 
   const nextContent: HomeContent = {
-    heroImage: String(formData.get('heroImage') ?? defaultHomeContent.heroImage).trim() || defaultHomeContent.heroImage,
+    heroImage,
     heroEyebrow: String(formData.get('heroEyebrow') ?? defaultHomeContent.heroEyebrow).trim() || defaultHomeContent.heroEyebrow,
     heroTitle: String(formData.get('heroTitle') ?? defaultHomeContent.heroTitle).trim() || defaultHomeContent.heroTitle,
     heroDescription:
@@ -70,8 +172,7 @@ export async function action({ request }: Route.ActionArgs) {
     categories,
   };
 
-  const adminDb = await getAdminFirestore();
-  await adminDb.collection(HOME_CONTENT_COLLECTION).doc(HOME_CONTENT_DOCUMENT_ID).set(
+  await homeContentRef.set(
     {
       ...nextContent,
       updatedAt: FieldValue.serverTimestamp(),
@@ -79,11 +180,16 @@ export async function action({ request }: Route.ActionArgs) {
     { merge: true },
   );
 
-  return { message: 'Home sayfası güncellendi.', success: true } satisfies ActionData;
+  await deleteUnusedHomeImages(previousContent, nextContent);
+
+  return { message: 'Home sayfası güncellendi. Kullanılmayan eski home resimleri silindi.', success: true } satisfies ActionData;
 }
 
 function EditHomeContent() {
   const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
+  const [homeImagePreviews, setHomeImagePreviews] = useState<{ heroImage?: string; categories: Record<number, string> }>({
+    categories: {},
+  });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const actionData = useActionData<ActionData>();
   const submit = useSubmit();
@@ -111,6 +217,25 @@ function EditHomeContent() {
     };
   }, []);
 
+  const handleHeroImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (selectedFile) {
+      setHomeImagePreviews((previews) => ({ ...previews, heroImage: URL.createObjectURL(selectedFile) }));
+    }
+  };
+
+  const handleCategoryImageChange = (event: ChangeEvent<HTMLInputElement>, index: number) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (selectedFile) {
+      setHomeImagePreviews((previews) => ({
+        ...previews,
+        categories: { ...previews.categories, [index]: URL.createObjectURL(selectedFile) },
+      }));
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitError(null);
@@ -130,7 +255,7 @@ function EditHomeContent() {
 
       const formData = new FormData(event.currentTarget);
       formData.set('authToken', tokenResult.token || (await user.getIdToken(true)));
-      submit(formData, { method: 'post' });
+      submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
       const detail = error instanceof Error ? ` (${error.message})` : '';
       setSubmitError(`Admin oturumu doğrulanamadı.${detail}`);
@@ -142,9 +267,9 @@ function EditHomeContent() {
       <NavBar />
       <main className="edit-home-page">
         <h1>Edit Home</h1>
-        <p>Sadece admin için sade home düzenleme ekranı.</p>
+        <p>Home resimlerini URL yazmadan seçin. Kaydedilen yeni resimler Firebase Storage'a yüklenir ve eski kullanılmayan home resimleri silinir.</p>
 
-        <Form className="edit-home-form" method="post" onSubmit={handleSubmit}>
+        <Form className="edit-home-form" method="post" encType="multipart/form-data" onSubmit={handleSubmit}>
           <input type="hidden" name="authToken" value="" readOnly />
           {submitError ? <p className="edit-home-message edit-home-message--error">{submitError}</p> : null}
           {actionData?.message ? (
@@ -155,14 +280,12 @@ function EditHomeContent() {
 
           <section className="edit-home-section">
             <h2>Büyük kaydırmalı alan</h2>
+            <input type="hidden" name="heroImage" value={homeContent.heroImage} readOnly />
             <label>
-              Resim URL
-              <input
-                name="heroImage"
-                value={homeContent.heroImage}
-                onChange={(event) => setHomeContent((content) => ({ ...content, heroImage: event.target.value }))}
-              />
+              Resim seç
+              <input type="file" accept="image/*" name="heroImageFile" onChange={handleHeroImageChange} />
             </label>
+            <img className="edit-home-image-preview edit-home-image-preview--hero" src={homeImagePreviews.heroImage ?? resolveHomeImageUrl(homeContent.heroImage)} alt="Büyük alan önizleme" />
             <label>
               Üst yazı
               <textarea
@@ -208,18 +331,12 @@ function EditHomeContent() {
                     }}
                   />
                 </label>
+                <input type="hidden" name={`categoryImage-${index}`} value={category.image} readOnly />
                 <label>
-                  Kategori resim URL {index + 1}
-                  <input
-                    name={`categoryImage-${index}`}
-                    value={category.image}
-                    onChange={(event) => {
-                      const nextCategories = [...homeContent.categories];
-                      nextCategories[index] = { ...category, image: event.target.value };
-                      setHomeContent((content) => ({ ...content, categories: nextCategories }));
-                    }}
-                  />
+                  Kategori resmi seç {index + 1}
+                  <input type="file" accept="image/*" name={`categoryImageFile-${index}`} onChange={(event) => handleCategoryImageChange(event, index)} />
                 </label>
+                <img className="edit-home-image-preview" src={homeImagePreviews.categories[index] ?? resolveHomeImageUrl(category.image)} alt={`${category.title} önizleme`} />
               </div>
             ))}
           </section>
