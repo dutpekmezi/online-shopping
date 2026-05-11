@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Form, Link, useActionData, useSubmit } from 'react-router';
+import { Form, redirect, useActionData, useSubmit } from 'react-router';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
@@ -183,11 +183,11 @@ export async function action({ request }: Route.ActionArgs) {
 
   await deleteUnusedHomeImages(previousContent, nextContent);
 
-  return { message: 'Home sayfası güncellendi. Kullanılmayan eski home resimleri silindi.', success: true } satisfies ActionData;
+  return redirect('/home');
 }
 
 function EditHomeContent() {
-  const { content: loadedHomeContent, isLoading, error } = useHomeContent();
+  const { content: loadedHomeContent, isLoading, error } = useHomeContent({ forceRefresh: true });
   const [homeContent, setHomeContent] = useState<HomeContent>(loadedHomeContent);
   const [homeImagePreviews, setHomeImagePreviews] = useState<{ heroImageUrl?: string; categories: Record<number, string> }>({
     categories: {},
@@ -329,7 +329,6 @@ function EditHomeContent() {
 
           <div className="edit-home-actions">
             <button className="edit-home-save" type="submit">Kaydet</button>
-            <Link className="edit-home-link" to="/home">Home'a dön</Link>
           </div>
         </Form>
       </main>
