@@ -18,6 +18,11 @@ type HomeContentState = {
 let cachedHomeContent: HomeContent | null = null;
 let pendingHomeContentRequest: Promise<HomeContent> | null = null;
 
+export function invalidateHomeContentCache() {
+  cachedHomeContent = null;
+  pendingHomeContentRequest = null;
+}
+
 async function readHomeContentDocument() {
   const snapshot = await getDoc(doc(db, HOME_CONTENT_COLLECTION, HOME_CONTENT_DOCUMENT_ID));
 
@@ -25,6 +30,10 @@ async function readHomeContentDocument() {
 }
 
 export async function loadHomeContent({ forceRefresh = false } = {}) {
+  if (forceRefresh) {
+    invalidateHomeContentCache();
+  }
+
   if (!forceRefresh && cachedHomeContent) {
     return cachedHomeContent;
   }
@@ -47,8 +56,8 @@ export async function loadHomeContent({ forceRefresh = false } = {}) {
 
 export function useHomeContent({ forceRefresh = false } = {}) {
   const [state, setState] = useState<HomeContentState>(() => ({
-    content: cachedHomeContent ?? defaultHomeContent,
-    isLoading: !cachedHomeContent,
+    content: forceRefresh ? defaultHomeContent : cachedHomeContent ?? defaultHomeContent,
+    isLoading: forceRefresh || !cachedHomeContent,
     error: null,
   }));
 
@@ -57,6 +66,7 @@ export function useHomeContent({ forceRefresh = false } = {}) {
 
     setState((currentState) => ({
       ...currentState,
+      content: forceRefresh ? defaultHomeContent : currentState.content,
       isLoading: forceRefresh || !cachedHomeContent,
       error: null,
     }));

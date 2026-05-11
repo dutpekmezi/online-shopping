@@ -1,4 +1,5 @@
-import type { LinksFunction, MetaFunction } from 'react-router';
+import { useEffect } from 'react';
+import { useSearchParams, type LinksFunction, type MetaFunction } from 'react-router';
 import { MainDataSection } from '../components/MainDataSection/MainDataSection';
 import mainDataSectionStylesHref from '../components/MainDataSection/MainDataSection.css?url';
 import { NavBar } from '../components/NavBar/NavBar';
@@ -23,7 +24,19 @@ export const meta: MetaFunction = () => {
 };
 
 export default function Home() {
-  const { content: homeContent, isLoading, error } = useHomeContent({ forceRefresh: true });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const shouldRefreshHome = searchParams.get('refreshHome') === '1';
+  const { content: homeContent, isLoading, error } = useHomeContent({ forceRefresh: shouldRefreshHome });
+
+  useEffect(() => {
+    if (!shouldRefreshHome || isLoading) {
+      return;
+    }
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete('refreshHome');
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [isLoading, searchParams, setSearchParams, shouldRefreshHome]);
 
   return (
     <>
