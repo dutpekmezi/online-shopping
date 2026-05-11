@@ -1,20 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Form, Link, useActionData, useSubmit } from 'react-router';
-import { doc, getDoc } from 'firebase/firestore';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
 import { useAuth } from '../hooks/useAuth';
-import { db } from '../lib/firebase.client';
 import {
   defaultHomeContent,
   HOME_CONTENT_COLLECTION,
   HOME_CONTENT_DOCUMENT_ID,
   normalizeHomeContent,
   resolveHomeImageUrl,
+  serializeHomeContent,
   type HomeContent,
 } from '../lib/home-content';
+import { useHomeContent } from '../hooks/useHomeContent';
 import editHomeStylesHref from './edit-home.css?url';
 import type { Route } from './+types/edit-home';
 
@@ -49,7 +49,7 @@ function createStorageFileName(fileName: string) {
 }
 
 function getHomeImages(content: HomeContent) {
-  return [content.heroImage, ...content.categories.map((category) => category.image)];
+  return [content.heroImageUrl, ...content.categories.map((category) => category.imageUrl)];
 }
 
 function getHomeStoragePathFromUrl(imageUrl: string, bucketName: string) {
@@ -143,38 +143,39 @@ export async function action({ request }: Route.ActionArgs) {
   const previousSnapshot = await homeContentRef.get();
   const previousContent = previousSnapshot.exists ? normalizeHomeContent(previousSnapshot.data()) : defaultHomeContent;
   const selectedHeroImage = getSelectedFile(formData, 'heroImageFile');
-  const heroImage = selectedHeroImage
+  const heroImageUrl = selectedHeroImage
     ? await uploadHomeImage(selectedHeroImage, 'hero')
-    : String(formData.get('heroImage') ?? defaultHomeContent.heroImage).trim() || defaultHomeContent.heroImage;
+    : String(formData.get('heroImageUrl') ?? defaultHomeContent.heroImageUrl).trim() || defaultHomeContent.heroImageUrl;
 
   const categories = await Promise.all(
     defaultHomeContent.categories.map(async (category, index) => {
       const title = String(formData.get(`categoryTitle-${index}`) ?? category.title).trim() || category.title;
       const selectedCategoryImage = getSelectedFile(formData, `categoryImageFile-${index}`);
-      const image = selectedCategoryImage
+      const imageUrl = selectedCategoryImage
         ? await uploadHomeImage(selectedCategoryImage, `category-${index + 1}`)
-        : String(formData.get(`categoryImage-${index}`) ?? category.image).trim() || category.image;
+        : String(formData.get(`categoryImageUrl-${index}`) ?? category.imageUrl).trim() || category.imageUrl;
 
       return {
         id: slugify(title) || category.id,
         title,
-        image,
+        imageUrl,
       };
     }),
   );
 
   const nextContent: HomeContent = {
-    heroImage,
+    heroImageUrl,
     heroEyebrow: String(formData.get('heroEyebrow') ?? defaultHomeContent.heroEyebrow).trim() || defaultHomeContent.heroEyebrow,
     heroTitle: String(formData.get('heroTitle') ?? defaultHomeContent.heroTitle).trim() || defaultHomeContent.heroTitle,
     heroDescription:
       String(formData.get('heroDescription') ?? defaultHomeContent.heroDescription).trim() || defaultHomeContent.heroDescription,
     categories,
+    sectionImages: categories.map((category) => category.imageUrl),
   };
 
   await homeContentRef.set(
     {
-      ...nextContent,
+      ...serializeHomeContent(nextContent),
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
@@ -186,8 +187,9 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 function EditHomeContent() {
-  const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
-  const [homeImagePreviews, setHomeImagePreviews] = useState<{ heroImage?: string; categories: Record<number, string> }>({
+  const { content: loadedHomeContent, isLoading, error } = useHomeContent();
+  const [homeContent, setHomeContent] = useState<HomeContent>(loadedHomeContent);
+  const [homeImagePreviews, setHomeImagePreviews] = useState<{ heroImageUrl?: string; categories: Record<number, string> }>({
     categories: {},
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -196,32 +198,14 @@ function EditHomeContent() {
   const { user } = useAuth();
 
   useEffect(() => {
-    let isSubscribed = true;
-
-    async function loadHomeContent() {
-      try {
-        const snapshot = await getDoc(doc(db, HOME_CONTENT_COLLECTION, HOME_CONTENT_DOCUMENT_ID));
-
-        if (isSubscribed && snapshot.exists()) {
-          setHomeContent(normalizeHomeContent(snapshot.data()));
-        }
-      } catch (error) {
-        console.error('Home content could not be loaded for editing.', error);
-      }
-    }
-
-    loadHomeContent();
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, []);
+    setHomeContent(loadedHomeContent);
+  }, [loadedHomeContent]);
 
   const handleHeroImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
 
     if (selectedFile) {
-      setHomeImagePreviews((previews) => ({ ...previews, heroImage: URL.createObjectURL(selectedFile) }));
+      setHomeImagePreviews((previews) => ({ ...previews, heroImageUrl: URL.createObjectURL(selectedFile) }));
     }
   };
 
@@ -271,6 +255,8 @@ function EditHomeContent() {
 
         <Form className="edit-home-form" method="post" encType="multipart/form-data" onSubmit={handleSubmit}>
           <input type="hidden" name="authToken" value="" readOnly />
+          {isLoading ? <p className="edit-home-message">Home içeriği yükleniyor…</p> : null}
+          {error ? <p className="edit-home-message edit-home-message--error">Home içeriği yüklenemedi; yedek içerik gösteriliyor.</p> : null}
           {submitError ? <p className="edit-home-message edit-home-message--error">{submitError}</p> : null}
           {actionData?.message ? (
             <p className={`edit-home-message ${actionData.success ? 'edit-home-message--success' : 'edit-home-message--error'}`}>
@@ -280,12 +266,12 @@ function EditHomeContent() {
 
           <section className="edit-home-section">
             <h2>Büyük kaydırmalı alan</h2>
-            <input type="hidden" name="heroImage" value={homeContent.heroImage} readOnly />
+            <input type="hidden" name="heroImageUrl" value={homeContent.heroImageUrl} readOnly />
             <label>
               Resim seç
               <input type="file" accept="image/*" name="heroImageFile" onChange={handleHeroImageChange} />
             </label>
-            <img className="edit-home-image-preview edit-home-image-preview--hero" src={homeImagePreviews.heroImage ?? resolveHomeImageUrl(homeContent.heroImage)} alt="Büyük alan önizleme" />
+            <img className="edit-home-image-preview edit-home-image-preview--hero" src={homeImagePreviews.heroImageUrl ?? resolveHomeImageUrl(homeContent.heroImageUrl)} alt="Büyük alan önizleme" />
             <label>
               Üst yazı
               <textarea
@@ -331,12 +317,12 @@ function EditHomeContent() {
                     }}
                   />
                 </label>
-                <input type="hidden" name={`categoryImage-${index}`} value={category.image} readOnly />
+                <input type="hidden" name={`categoryImageUrl-${index}`} value={category.imageUrl} readOnly />
                 <label>
                   Kategori resmi seç {index + 1}
                   <input type="file" accept="image/*" name={`categoryImageFile-${index}`} onChange={(event) => handleCategoryImageChange(event, index)} />
                 </label>
-                <img className="edit-home-image-preview" src={homeImagePreviews.categories[index] ?? resolveHomeImageUrl(category.image)} alt={`${category.title} önizleme`} />
+                <img className="edit-home-image-preview" src={homeImagePreviews.categories[index] ?? resolveHomeImageUrl(category.imageUrl)} alt={`${category.title} önizleme`} />
               </div>
             ))}
           </section>
