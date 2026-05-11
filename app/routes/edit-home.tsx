@@ -14,7 +14,7 @@ import {
   serializeHomeContent,
   type HomeContent,
 } from '../lib/home-content';
-import { useHomeContent } from '../hooks/useHomeContent';
+import { invalidateHomeContentCache, useHomeContent } from '../hooks/useHomeContent';
 import editHomeStylesHref from './edit-home.css?url';
 import type { Route } from './+types/edit-home';
 
@@ -138,52 +138,58 @@ export async function action({ request }: Route.ActionArgs) {
     return { message: 'Bu işlem için admin yetkisi gerekli.', success: false } satisfies ActionData;
   }
 
-  const adminDb = await getAdminFirestore();
-  const homeContentRef = adminDb.collection(HOME_CONTENT_COLLECTION).doc(HOME_CONTENT_DOCUMENT_ID);
-  const previousSnapshot = await homeContentRef.get();
-  const previousContent = previousSnapshot.exists ? normalizeHomeContent(previousSnapshot.data()) : defaultHomeContent;
-  const selectedHeroImage = getSelectedFile(formData, 'heroImageFile');
-  const heroImageUrl = selectedHeroImage
-    ? await uploadHomeImage(selectedHeroImage, 'hero')
-    : String(formData.get('heroImageUrl') ?? defaultHomeContent.heroImageUrl).trim() || defaultHomeContent.heroImageUrl;
+  try {
+    const adminDb = await getAdminFirestore();
+    const homeContentRef = adminDb.collection(HOME_CONTENT_COLLECTION).doc(HOME_CONTENT_DOCUMENT_ID);
+    const previousSnapshot = await homeContentRef.get();
+    const previousContent = previousSnapshot.exists ? normalizeHomeContent(previousSnapshot.data()) : defaultHomeContent;
+    const selectedHeroImage = getSelectedFile(formData, 'heroImageFile');
+    const heroImageUrl = selectedHeroImage
+      ? await uploadHomeImage(selectedHeroImage, 'hero')
+      : String(formData.get('heroImageUrl') ?? defaultHomeContent.heroImageUrl).trim() || defaultHomeContent.heroImageUrl;
 
-  const categories = await Promise.all(
-    defaultHomeContent.categories.map(async (category, index) => {
-      const title = String(formData.get(`categoryTitle-${index}`) ?? category.title).trim() || category.title;
-      const selectedCategoryImage = getSelectedFile(formData, `categoryImageFile-${index}`);
-      const imageUrl = selectedCategoryImage
-        ? await uploadHomeImage(selectedCategoryImage, `category-${index + 1}`)
-        : String(formData.get(`categoryImageUrl-${index}`) ?? category.imageUrl).trim() || category.imageUrl;
+    const categories = await Promise.all(
+      defaultHomeContent.categories.map(async (category, index) => {
+        const title = String(formData.get(`categoryTitle-${index}`) ?? category.title).trim() || category.title;
+        const selectedCategoryImage = getSelectedFile(formData, `categoryImageFile-${index}`);
+        const imageUrl = selectedCategoryImage
+          ? await uploadHomeImage(selectedCategoryImage, `category-${index + 1}`)
+          : String(formData.get(`categoryImageUrl-${index}`) ?? category.imageUrl).trim() || category.imageUrl;
 
-      return {
-        id: slugify(title) || category.id,
-        title,
-        imageUrl,
-      };
-    }),
-  );
+        return {
+          id: slugify(title) || category.id,
+          title,
+          imageUrl,
+        };
+      }),
+    );
 
-  const nextContent: HomeContent = {
-    heroImageUrl,
-    heroEyebrow: String(formData.get('heroEyebrow') ?? defaultHomeContent.heroEyebrow).trim() || defaultHomeContent.heroEyebrow,
-    heroTitle: String(formData.get('heroTitle') ?? defaultHomeContent.heroTitle).trim() || defaultHomeContent.heroTitle,
-    heroDescription:
-      String(formData.get('heroDescription') ?? defaultHomeContent.heroDescription).trim() || defaultHomeContent.heroDescription,
-    categories,
-    sectionImages: categories.map((category) => category.imageUrl),
-  };
+    const nextContent: HomeContent = {
+      heroImageUrl,
+      heroEyebrow: String(formData.get('heroEyebrow') ?? defaultHomeContent.heroEyebrow).trim() || defaultHomeContent.heroEyebrow,
+      heroTitle: String(formData.get('heroTitle') ?? defaultHomeContent.heroTitle).trim() || defaultHomeContent.heroTitle,
+      heroDescription:
+        String(formData.get('heroDescription') ?? defaultHomeContent.heroDescription).trim() || defaultHomeContent.heroDescription,
+      categories,
+      sectionImages: categories.map((category) => category.imageUrl),
+    };
 
-  await homeContentRef.set(
-    {
-      ...serializeHomeContent(nextContent),
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
+    await homeContentRef.set(
+      {
+        ...serializeHomeContent(nextContent),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
 
-  await deleteUnusedHomeImages(previousContent, nextContent);
+    await deleteUnusedHomeImages(previousContent, nextContent);
+  } catch (error) {
+    console.error('Home content could not be saved.', error);
 
-  return redirect('/home');
+    return { message: 'Home içeriği kaydedilemedi. Lütfen tekrar deneyin.', success: false } satisfies ActionData;
+  }
+
+  return redirect('/home?refreshHome=1');
 }
 
 function EditHomeContent() {
@@ -244,6 +250,8 @@ function EditHomeContent() {
         setSubmitError('Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.');
         return;
       }
+
+      invalidateHomeContentCache();
 
       const formData = new FormData(form);
       formData.set('authToken', authToken);
