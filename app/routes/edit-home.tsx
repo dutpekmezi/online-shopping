@@ -222,6 +222,7 @@ function EditHomeContent() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const form = event.currentTarget;
     setSubmitError(null);
 
     if (!user) {
@@ -237,8 +238,15 @@ function EditHomeContent() {
         return;
       }
 
-      const formData = new FormData(event.currentTarget);
-      formData.set('authToken', tokenResult.token || (await user.getIdToken(true)));
+      const authToken = tokenResult.token || (await user.getIdToken(true));
+
+      if (!authToken) {
+        setSubmitError('Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.');
+        return;
+      }
+
+      const formData = new FormData(form);
+      formData.set('authToken', authToken);
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
       const detail = error instanceof Error ? ` (${error.message})` : '';
