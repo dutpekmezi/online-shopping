@@ -35,3 +35,15 @@
   line-height: 1.4;
   margin: 0.5rem 0 0;
 }
+
+.product-card__link {
+  display: block;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.product-card__link:focus-visible {
+  outline: 3px solid #c86f2e;
+  outline-offset: 3px;
+}
