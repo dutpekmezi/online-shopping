@@ -67,3 +67,11 @@ export async function fetchProducts(): Promise<Product[]> {
 
   return sortByCreatedAtDesc(products);
 }
+
+export async function fetchProductCategories(): Promise<string[]> {
+  const products = await fetchProducts();
+
+  return Array.from(new Set(products.map((product) => product.category.trim()).filter(Boolean))).sort((firstCategory, secondCategory) =>
+    firstCategory.localeCompare(secondCategory),
+  );
+}
