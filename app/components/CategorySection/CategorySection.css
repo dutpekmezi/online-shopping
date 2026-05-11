@@ -32,3 +32,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+.category-section__status {
+  margin: 0 0 1rem;
+  color: #666;
+  font-weight: 700;
+}
