@@ -11,6 +11,7 @@ export default [
   route("compare-products", "routes/compare-products.tsx"),
   route("collections", "routes/collections.tsx"),
   route("add-product", "routes/add-product.tsx"),
+  route("edit-home", "routes/edit-home.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("account", "routes/account.tsx"),

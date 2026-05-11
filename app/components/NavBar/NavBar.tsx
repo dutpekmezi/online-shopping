@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { AuthStatus } from "~/components/auth/AuthStatus";
 import { useAuth } from "~/hooks/useAuth";
@@ -18,7 +18,6 @@ const topLinks = [
   { label: "Collections", to: "/collections" },
 ];
 
-const adminLinks = [{ label: "Add Product", to: "/add-product" }];
 
 function SocialIcon({
   href,
@@ -38,7 +37,7 @@ function SocialIcon({
 
 export function NavBar() {
   const { isAdmin } = useAuth();
-  const visibleLinks = isAdmin ? [...topLinks, ...adminLinks] : topLinks;
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
   return (
     <header className="navbar">
@@ -78,11 +77,29 @@ export function NavBar() {
         </div>
 
         <nav className="navbar__menu" aria-label="Main navigation">
-          {visibleLinks.map((link) => (
+          {topLinks.map((link) => (
             <Link to={link.to} key={link.to} className="navbar__menu-link">
               {link.label}
             </Link>
           ))}
+          {isAdmin ? (
+            <div className="navbar__admin-menu">
+              <button
+                type="button"
+                className="navbar__admin-button"
+                aria-expanded={isAdminMenuOpen}
+                onClick={() => setIsAdminMenuOpen((isOpen) => !isOpen)}
+              >
+                Admin
+              </button>
+              {isAdminMenuOpen ? (
+                <div className="navbar__admin-panel">
+                  <Link to="/add-product" className="navbar__admin-item">Add Product</Link>
+                  <Link to="/edit-home" className="navbar__admin-item">Edit Home</Link>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </nav>
 
         <div className="navbar__actions" aria-label="Quick actions">
