@@ -8,9 +8,10 @@ export function links() {
 
 type MainDataSectionProps = {
   content?: Pick<HomeContent, 'heroImageUrl' | 'heroEyebrow' | 'heroTitle' | 'heroDescription'>;
+  isLoading?: boolean;
 };
 
-export function MainDataSection({ content = defaultHomeContent }: MainDataSectionProps) {
+export function MainDataSection({ content = defaultHomeContent, isLoading = false }: MainDataSectionProps) {
   const fallbackHeroImageUrl = resolveHomeImageUrl(defaultHomeContent.heroImageUrl);
   const heroImageUrl = resolveHomeImageUrl(content.heroImageUrl);
   const [imageErrorBySrc, setImageErrorBySrc] = useState<Set<string>>(() => new Set());
@@ -19,13 +20,15 @@ export function MainDataSection({ content = defaultHomeContent }: MainDataSectio
     setImageErrorBySrc(new Set());
   }, [heroImageUrl]);
 
+  const isInitialHeroLoading = isLoading && heroImageUrl === fallbackHeroImageUrl;
   const hasHeroImageError = imageErrorBySrc.has(heroImageUrl);
   const canUseFallback = heroImageUrl !== fallbackHeroImageUrl && !imageErrorBySrc.has(fallbackHeroImageUrl);
-  const heroImageSrc = hasHeroImageError ? (canUseFallback ? fallbackHeroImageUrl : '') : heroImageUrl;
+  const heroImageSrc = isInitialHeroLoading ? '' : hasHeroImageError ? (canUseFallback ? fallbackHeroImageUrl : '') : heroImageUrl;
 
   return (
     <div className="main-data-container">
       <section className="main-data-section">
+        {isInitialHeroLoading ? <div className="main-data-section__image-skeleton" aria-hidden="true" /> : null}
         {heroImageSrc ? (
           <img
             key={heroImageSrc}

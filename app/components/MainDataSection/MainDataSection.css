@@ -29,6 +29,27 @@
   object-position: center;
 }
 
+.main-data-section__image-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(270deg, rgba(16, 11, 8, 0.55), rgba(16, 11, 8, 0.82)),
+    linear-gradient(110deg, #19120d 8%, #2a211b 18%, #19120d 33%);
+  background-size: 100% 100%, 220% 100%;
+  animation: main-data-section-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes main-data-section-skeleton {
+  0% {
+    background-position: 0 0, 120% 0;
+  }
+
+  100% {
+    background-position: 0 0, -120% 0;
+  }
+}
+
 .main-data-section__overlay {
   max-width: 1200px;
   margin: 0 auto;

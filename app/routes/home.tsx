@@ -41,7 +41,7 @@ export default function Home() {
   return (
     <>
       <NavBar />
-      <MainDataSection content={homeContent} />
+      <MainDataSection content={homeContent} isLoading={isLoading} />
       <CategorySection categories={homeContent.categories} isLoading={isLoading} />
       {error ? <p className="home-content-status" role="status">Home content could not be refreshed. Showing fallback images.</p> : null}
     </>
