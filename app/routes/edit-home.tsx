@@ -15,7 +15,7 @@ import {
   serializeHomeContent,
   type HomeContent,
 } from '../lib/home-content';
-import { invalidateHomeContentCache, useHomeContent } from '../hooks/useHomeContent';
+import { useHomeContent } from '../hooks/useHomeContent';
 import { optimizeHomeImageFile } from '../lib/home-image-optimizer.client';
 import { fetchProductCategories } from '../lib/products';
 import editHomeStylesHref from './edit-home.css?url';
@@ -230,7 +230,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 function EditHomeContent() {
-  const { content: loadedHomeContent, isLoading, error } = useHomeContent({ forceRefresh: true });
+  const { content: loadedHomeContent, isLoading, error } = useHomeContent();
   const [homeContent, setHomeContent] = useState<HomeContent>(loadedHomeContent);
   const [homeImagePreviews, setHomeImagePreviews] = useState<{ heroImageUrl?: string; categories: Record<number, string> }>({
     categories: {},
@@ -385,8 +385,6 @@ function EditHomeContent() {
           }
         }),
       );
-
-      invalidateHomeContentCache();
 
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
