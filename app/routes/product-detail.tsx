@@ -87,14 +87,6 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
     <aside className="product-detail__purchase-card" aria-label="Purchase options">
       {product.cartCount ? <p className="product-detail__urgency">In {product.cartCount} carts</p> : null}
 
-      <div className="product-detail__price-row" aria-live="polite">
-        <span className="product-detail__price">{formatCurrency(currentPrice)}</span>
-        {hasComparePrice ? <span className="product-detail__old-price">{formatCurrency(comparePrice)}</span> : null}
-      </div>
-      {(product.saleText || discountPercentage > 0) && (
-        <p className="product-detail__sale-badge">{product.saleText ?? `${discountPercentage}% off today`}</p>
-      )}
-
       <h1 className="product-detail__title">{product.title}</h1>
 
       {hasVariations && (
@@ -132,6 +124,16 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
           ))}
         </select>
       </label>
+
+      <div className="product-detail__price-summary">
+        <div className="product-detail__price-row" aria-live="polite">
+          <span className="product-detail__price">{formatCurrency(currentPrice)}</span>
+          {hasComparePrice ? <span className="product-detail__old-price">{formatCurrency(comparePrice)}</span> : null}
+        </div>
+        {(product.saleText || discountPercentage > 0) && (
+          <p className="product-detail__sale-badge">{product.saleText ?? `${discountPercentage}% off today`}</p>
+        )}
+      </div>
 
       <div className="product-detail__actions">
         <button className="product-detail__button product-detail__button--primary" type="button" disabled={isUnavailable}>
