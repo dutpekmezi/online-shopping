@@ -652,21 +652,25 @@ function AddProductContent() {
             <div className="photo-fields">
               <span className="photo-fields__label">Photos</span>
               <div className="photo-tile-grid">
-                {isEditing
-                  ? existingPhotoUrls.map((photoUrl, index) => (
-                      <div key={photoUrl} className="photo-tile photo-tile--filled">
-                        <input type="hidden" name="existingPhotoUrls" value={photoUrl} />
-                        <img src={photoUrl} alt={`Current product photo ${index + 1}`} />
-                        <button
-                          type="button"
-                          className="photo-tile__delete"
-                          aria-label={`Current product photo ${index + 1} delete`}
-                          onClick={() => removeExistingPhoto(photoUrl)}
-                        >
-                          🗑
-                        </button>
-                      </div>
-                    ))
+                {isEditing || isDuplicating
+                  ? existingPhotoUrls.map((photoUrl, index) => {
+                      const photoLabel = isDuplicating ? 'Copied product photo' : 'Current product photo';
+
+                      return (
+                        <div key={photoUrl} className="photo-tile photo-tile--filled">
+                          <input type="hidden" name="existingPhotoUrls" value={photoUrl} />
+                          <img src={photoUrl} alt={`${photoLabel} ${index + 1}`} />
+                          <button
+                            type="button"
+                            className="photo-tile__delete"
+                            aria-label={`${photoLabel} ${index + 1} delete`}
+                            onClick={() => removeExistingPhoto(photoUrl)}
+                          >
+                            🗑
+                          </button>
+                        </div>
+                      );
+                    })
                   : null}
                 {photoFields.map((field, index) => (
                   <label key={field.id} className={`photo-tile${field.previewUrl ? ' photo-tile--filled' : ''}`}>
