@@ -82,10 +82,10 @@
 }
 
 .product-card__options-button span {
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.3rem;
+  height: 0.3rem;
   border-radius: 999px;
-  background: #1ed515;
+  background: #000000;
   display: block;
 }
 
