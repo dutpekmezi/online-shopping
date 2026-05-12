@@ -73,10 +73,10 @@ function mapProductDocument(docSnapshot: { id: string; data: () => Record<string
 
   return {
     productId: toProductField(data.productId, docSnapshot.id),
-    title: toProductField(data.title, 'İsimsiz ürün'),
+    title: toProductField(data.title, 'Untitled item'),
     description: toProductField(data.description),
     imageUrl: resolveProductImageUrl(imageUrl),
-    category: toProductField(data.category, 'Genel'),
+    category: toProductField(data.category, 'General'),
     basePrice: typeof data.basePrice === 'string' ? data.basePrice : undefined,
     pricingState: data.pricingState as ProductPricingState | undefined,
     imageUrls: toOptionalStringArray(data.imageUrls),

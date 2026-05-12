@@ -66,7 +66,7 @@
 
 .product-card__options {
   position: absolute;
-  top: calc(100% - 4.15rem);
+  top: calc(100% - 3.25rem);
   right: 0.35rem;
   z-index: 3;
 }

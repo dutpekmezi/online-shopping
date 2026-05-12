@@ -15,8 +15,8 @@ export default function UnauthorizedPage() {
       <NavBar />
       <main className="panel-page">
         <h1>Unauthorized</h1>
-        <p>Bu alana erişim izniniz yok.</p>
-        <Link to="/home">Ana sayfaya dön</Link>
+        <p>You do not have access to this area.</p>
+        <Link to="/home">Go back to Home</Link>
       </main>
     </>
   );

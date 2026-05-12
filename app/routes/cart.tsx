@@ -13,8 +13,8 @@ export const links: Route.LinksFunction = () => [
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: 'Sepetiniz | Online Shopping' },
-    { name: 'description', content: 'Alışveriş sepetinizi görüntüleyin ve düzenleyin.' },
+    { title: 'Your Cart | Online Shopping' },
+    { name: 'description', content: 'View and edit your shopping cart.' },
   ];
 }
 
@@ -56,37 +56,37 @@ export default function Cart() {
         <nav className="cart-page__breadcrumbs" aria-label="Breadcrumb">
           <Link to="/home">Home</Link>
           <span aria-hidden="true">›</span>
-          <span>Alışveriş Sepetiniz</span>
+          <span>Your Shopping Cart</span>
         </nav>
 
         <div className="cart-page__header">
-          <h1 className="cart-page__title">Sepetiniz</h1>
+          <h1 className="cart-page__title">Your Cart</h1>
           <Link className="cart-page__continue" to="/collections">
-            Alışverişe devam et
+            Keep shopping
           </Link>
         </div>
 
         {items.length === 0 ? (
-          <section className="cart-page__empty" aria-label="Boş sepet">
-            <h2>Sepetiniz boş.</h2>
-            <p>Beğendiğiniz ürünleri sepetinize ekleyerek bu sayfada görebilirsiniz.</p>
+          <section className="cart-page__empty" aria-label="Empty cart">
+            <h2>Your cart is empty.</h2>
+            <p>Add items you like to your cart, and you will see them here.</p>
             <Link className="cart-page__empty-link" to="/collections">
-              Koleksiyonlara git
+              Go to Collections
             </Link>
           </section>
         ) : (
           <>
             <div className="cart-page__table-heading" aria-hidden="true">
-              <span>Ürün</span>
-              <span>Adet</span>
-              <span>Toplam</span>
+              <span>Item</span>
+              <span>Qty</span>
+              <span>Total</span>
             </div>
 
             <div className="cart-page__items">
               {items.map((item) => (
                 <article className="cart-page__item" key={item.id}>
                   <div className="cart-page__product">
-                    <Link className="cart-page__image-link" to={`/products/${item.productId}`} aria-label={`${item.title} detayına git`}>
+                    <Link className="cart-page__image-link" to={`/products/${item.productId}`} aria-label={`${item.title} details`}>
                       {item.imageUrl ? <img src={item.imageUrl} alt={item.title} /> : null}
                     </Link>
                     <div>
@@ -102,16 +102,16 @@ export default function Cart() {
                   </div>
 
                   <div className="cart-page__quantity-area">
-                    <div className="cart-page__quantity" aria-label={`${item.title} adedi`}>
-                      <button type="button" onClick={() => updateQuantity(item.id, item.quantity - 1)} aria-label="Adedi azalt">
+                    <div className="cart-page__quantity" aria-label={`${item.title} quantity`}>
+                      <button type="button" onClick={() => updateQuantity(item.id, item.quantity - 1)} aria-label="Decrease quantity">
                         −
                       </button>
                       <span>{item.quantity}</span>
-                      <button type="button" onClick={() => updateQuantity(item.id, item.quantity + 1)} aria-label="Adedi artır">
+                      <button type="button" onClick={() => updateQuantity(item.id, item.quantity + 1)} aria-label="Increase quantity">
                         +
                       </button>
                     </div>
-                    <button type="button" className="cart-page__remove" onClick={() => removeItem(item.id)} aria-label={`${item.title} ürününü kaldır`}>
+                    <button type="button" className="cart-page__remove" onClick={() => removeItem(item.id)} aria-label={`${item.title} remove item`}>
                       🗑
                     </button>
                   </div>
@@ -121,14 +121,14 @@ export default function Cart() {
               ))}
             </div>
 
-            <section className="cart-page__summary" aria-label="Sepet özeti">
+            <section className="cart-page__summary" aria-label="Cart summary">
               <p className="cart-page__subtotal">
-                <strong>Tahmini toplam</strong>
+                <strong>Estimated total</strong>
                 <span>{formatCurrency(subtotal)}</span>
               </p>
-              <p className="cart-page__note">Vergiler, indirimler ve kargo, ödeme sayfasında hesaplanır.</p>
+              <p className="cart-page__note">Taxes, discounts, and shipping are calculated at checkout.</p>
               <button className="cart-page__checkout" type="button">
-                Ödemeye geç
+                Check out
               </button>
             </section>
           </>

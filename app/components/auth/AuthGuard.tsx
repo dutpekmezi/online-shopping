@@ -12,7 +12,7 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
   const location = useLocation();
 
   if (loading) {
-    return <p style={{ padding: "2rem", textAlign: "center" }}>Oturum doğrulanıyor...</p>;
+    return <p style={{ padding: "2rem", textAlign: "center" }}>Checking your sign-in...</p>;
   }
 
   if (!isAuthenticated) {

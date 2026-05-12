@@ -92,16 +92,16 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     pricingState = JSON.parse(serializedPricingState) as ProductPricingState;
   } catch {
-    return { message: 'Fiyatlandırma verisi okunamadı.', success: false } satisfies ActionData;
+    return { message: 'Pricing data could not be read.', success: false } satisfies ActionData;
   }
 
   const errors = validatePricingState(pricingState);
   if (errors.length > 0) {
-    return { message: errors[0]?.message ?? 'Fiyatlandırma doğrulaması başarısız.', success: false } satisfies ActionData;
+    return { message: errors[0]?.message ?? 'Pricing check failed.', success: false } satisfies ActionData;
   }
 
   if (!authToken) {
-    return { message: 'Admin oturumu doğrulanamadı.', success: false } satisfies ActionData;
+    return { message: 'We could not confirm the admin session.', success: false } satisfies ActionData;
   }
 
   const { getAdminAuth, getAdminFirestore, getAdminStorageBucket, FieldValue } = await import('../lib/firebase-admin.server');
@@ -109,11 +109,11 @@ export async function action({ request }: Route.ActionArgs) {
   const decodedToken = await adminAuth.verifyIdToken(authToken).catch(() => null);
 
   if (!decodedToken) {
-    return { message: 'Admin oturumu doğrulanamadı.', success: false } satisfies ActionData;
+    return { message: 'We could not confirm the admin session.', success: false } satisfies ActionData;
   }
 
   if (decodedToken.admin !== true) {
-    return { message: 'Bu işlem için admin yetkisi gerekli.', success: false } satisfies ActionData;
+    return { message: 'Admin access is required for this action.', success: false } satisfies ActionData;
   }
 
   const db = await getAdminFirestore();
@@ -123,7 +123,7 @@ export async function action({ request }: Route.ActionArgs) {
   const existingProduct = existingDocument?.exists ? existingDocument.data() : null;
 
   if (isEditing && !existingProduct) {
-    return { message: 'Düzenlenecek ürün bulunamadı.', success: false } satisfies ActionData;
+    return { message: 'We could not find the product to edit.', success: false } satisfies ActionData;
   }
 
   const resolvedTitle = title || (isEditing && typeof existingProduct?.title === 'string' ? existingProduct.title.trim() : '');
@@ -131,7 +131,7 @@ export async function action({ request }: Route.ActionArgs) {
   const resolvedCategory = submittedCategory || (isEditing && typeof existingProduct?.category === 'string' ? existingProduct.category.trim() : '');
 
   if (!resolvedTitle || !resolvedDescription || !resolvedCategory) {
-    return { message: 'Başlık, açıklama ve kategori zorunlu.', success: false } satisfies ActionData;
+    return { message: 'Title, description, and category are required.', success: false } satisfies ActionData;
   }
 
   const uploadedImageUrls: string[] = [];
@@ -173,7 +173,7 @@ export async function action({ request }: Route.ActionArgs) {
   const imageUrls = [...retainedExistingImageUrls, ...uploadedImageUrls].slice(0, MAX_PRODUCT_PHOTOS);
 
   if (imageUrls.length === 0) {
-    return { message: 'En az bir ürün fotoğrafı zorunlu.', success: false } satisfies ActionData;
+    return { message: 'At least one product photo is required.', success: false } satisfies ActionData;
   }
 
   const imageUrl = imageUrls[0];
@@ -201,8 +201,8 @@ export async function action({ request }: Route.ActionArgs) {
 
   return {
     message: editProductId
-      ? `Ürün #${nextProductId} güncellendi ve yayınlandı.`
-      : `Ürün #${nextProductId} yayınlandı.`,
+      ? `Product #${nextProductId} was updated and published.`
+      : `Product #${nextProductId} was published.`,
     success: true,
   } satisfies ActionData;
 }
@@ -271,7 +271,7 @@ function AddProductContent() {
       } catch (error) {
         if (isSubscribed) {
           setCategories([]);
-          setCategoriesError(error instanceof Error ? error.message : 'Kategoriler yüklenirken hata oluştu.');
+          setCategoriesError(error instanceof Error ? error.message : 'Categories could not be loaded.');
         }
       } finally {
         if (isSubscribed) {
@@ -309,7 +309,7 @@ function AddProductContent() {
         }
 
         if (!editableProduct) {
-          setProductError('Düzenlenecek ürün bulunamadı.');
+          setProductError('We could not find the product to edit.');
           return;
         }
 
@@ -325,7 +325,7 @@ function AddProductContent() {
         setPhotoFields(editablePhotoUrls.length >= MAX_PRODUCT_PHOTOS ? [] : [createEmptyPhotoField()]);
       } catch (error) {
         if (isSubscribed) {
-          setProductError(error instanceof Error ? error.message : 'Ürün bilgileri yüklenirken hata oluştu.');
+          setProductError(error instanceof Error ? error.message : 'Product details could not be loaded.');
         }
       } finally {
         if (isSubscribed) {
@@ -526,7 +526,7 @@ function AddProductContent() {
     setIsPreparingPublish(true);
 
     if (!currentUser) {
-      const message = 'Ürün kaydetmek için admin olarak giriş yapmalısınız.';
+      const message = 'Please sign in as an admin to save a product.';
       setSubmitError(message);
       setIsPreparingPublish(false);
       window.alert(message);
@@ -537,7 +537,7 @@ function AddProductContent() {
       const tokenResult = await currentUser.getIdTokenResult(true);
 
       if (tokenResult.claims.admin !== true) {
-        const message = 'Admin yetkisi yenilenemedi. Lütfen çıkış yapıp tekrar giriş yapın.';
+        const message = 'Admin access could not be refreshed. Please sign out and sign back in.';
         setSubmitError(message);
         setIsPreparingPublish(false);
         window.alert(message);
@@ -550,7 +550,7 @@ function AddProductContent() {
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
       const detail = error instanceof Error ? ` (${error.message})` : '';
-      const message = `Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.${detail}`;
+      const message = `We could not confirm the admin session. Please sign in again.${detail}`;
       setSubmitError(message);
       setIsPreparingPublish(false);
       window.alert(message);
@@ -569,9 +569,9 @@ function AddProductContent() {
 
         <Form className="add-product-form" method="post" encType="multipart/form-data" onSubmit={handleSubmit}>
           {submitError && <p className="hint danger-text">{submitError}</p>}
-          {categoriesLoading && <p className="hint">Kategoriler Firestore'dan yükleniyor...</p>}
+          {categoriesLoading && <p className="hint">Loading categories from Firestore...</p>}
           {categoriesError && <p className="hint danger-text">{categoriesError}</p>}
-          {productLoading && <p className="hint">Ürün bilgileri yükleniyor...</p>}
+          {productLoading && <p className="hint">Loading product details...</p>}
           {productError && <p className="hint danger-text">{productError}</p>}
           <input type="hidden" name="authToken" value="" readOnly />
           <input type="hidden" name="editProductId" value={editProductId} readOnly />
@@ -592,7 +592,7 @@ function AddProductContent() {
               Title
               <input
                 type="text"
-                placeholder="Örn: Handcrafted Ceramic Mug"
+                placeholder="Example: Handcrafted Ceramic Mug"
                 maxLength={140}
                 value={title}
                 name="title"
@@ -609,11 +609,11 @@ function AddProductContent() {
                   ? existingPhotoUrls.map((photoUrl, index) => (
                       <div key={photoUrl} className="photo-tile photo-tile--filled">
                         <input type="hidden" name="existingPhotoUrls" value={photoUrl} />
-                        <img src={photoUrl} alt={`Mevcut ürün fotoğrafı ${index + 1}`} />
+                        <img src={photoUrl} alt={`Current product photo ${index + 1}`} />
                         <button
                           type="button"
                           className="photo-tile__delete"
-                          aria-label={`Mevcut ürün fotoğrafı ${index + 1} sil`}
+                          aria-label={`Current product photo ${index + 1} delete`}
                           onClick={() => removeExistingPhoto(photoUrl)}
                         >
                           🗑
@@ -626,11 +626,11 @@ function AddProductContent() {
                     <input type="file" accept="image/*" name="photos" onChange={(event) => handlePhotoChange(field.id, event)} />
                     {field.previewUrl ? (
                       <>
-                        <img src={field.previewUrl} alt={field.fileName || `Yeni ürün fotoğrafı ${index + 1}`} />
+                        <img src={field.previewUrl} alt={field.fileName || `New product photo ${index + 1}`} />
                         <button
                           type="button"
                           className="photo-tile__delete"
-                          aria-label={`Yeni ürün fotoğrafı ${index + 1} sil`}
+                          aria-label={`New product photo ${index + 1} delete`}
                           onClick={(event) => {
                             event.preventDefault();
                             removePhotoField(field.id);
@@ -644,7 +644,7 @@ function AddProductContent() {
                         +
                       </span>
                     )}
-                    <span className="photo-tile__label">{field.fileName || `Fotoğraf ${existingPhotoUrls.length + index + 1}`}</span>
+                    <span className="photo-tile__label">{field.fileName || `Photo ${existingPhotoUrls.length + index + 1}`}</span>
                   </label>
                 ))}
                 <button
@@ -652,14 +652,14 @@ function AddProductContent() {
                   className="photo-tile photo-tile--add"
                   onClick={addPhotoField}
                   disabled={!canAddPhotoField}
-                  title={!canAddPhotoField ? 'En fazla 10 fotoğraf ekleyebilirsiniz.' : undefined}
+                  title={!canAddPhotoField ? 'You can add up to 10 photos.' : undefined}
                 >
                   <span aria-hidden="true">+</span>
-                  <span>Fotoğraf ekle</span>
+                  <span>Add photo</span>
                 </button>
               </div>
               <span className="hint">
-                {totalPhotoSlots}/{MAX_PRODUCT_PHOTOS} fotoğraf kutusu açık. Düzenleme sırasında yeni fotoğraf seçmezseniz kalan mevcut fotoğraflar korunur.
+                {totalPhotoSlots}/{MAX_PRODUCT_PHOTOS} photo boxes are open. When editing, current photos stay if you do not choose new photos.
               </span>
             </div>
 
@@ -667,7 +667,7 @@ function AddProductContent() {
               Description
               <textarea
                 rows={6}
-                placeholder="Ürünü, malzemesini ve bakım bilgisini anlatın..."
+                placeholder="Describe the item, materials, and care steps..."
                 value={description}
                 name="description"
                 onChange={(event) => setDescription(event.target.value)}
@@ -678,7 +678,7 @@ function AddProductContent() {
             <label>
               Category
               <select value={selectedCategory} name="category" onChange={(event) => setSelectedCategory(event.target.value)}>
-                <option value="">Kategori seçin</option>
+                <option value="">Choose a category</option>
                 {categories.map((category) => (
                   <option key={category} value={category}>
                     {category}
@@ -688,11 +688,11 @@ function AddProductContent() {
             </label>
 
             <label>
-              Yeni kategori (opsiyonel)
+              New category (optional)
               <input
                 type="text"
                 name="newCategory"
-                placeholder="Örn: Handmade Jewelry"
+                placeholder="Example: Handmade Jewelry"
                 value={newCategory}
                 onChange={(event) => setNewCategory(event.target.value)}
               />
@@ -732,7 +732,7 @@ function AddProductContent() {
                 Variation group name
                 <input
                   type="text"
-                  placeholder="Örn: Size"
+                  placeholder="Example: Size"
                   value={variationNameInput}
                   onChange={(event) => setVariationNameInput(event.target.value)}
                 />
@@ -744,8 +744,8 @@ function AddProductContent() {
                 title={
                   !canAddVariationGroup
                     ? pricingState.variationGroups.length >= 2
-                    ? 'En fazla 2 variation group ekleyebilirsiniz.'
-                    : 'Önce variation group name girin.'
+                    ? 'You can add up to 2 variation groups.'
+                    : 'Enter a variation group name first.'
                     : undefined
                 }
               >
