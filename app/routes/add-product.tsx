@@ -29,7 +29,9 @@ export function meta({}: Route.MetaArgs) {
 
 const createId = () => Math.random().toString(36).slice(2, 10);
 const MAX_PRODUCT_PHOTOS = 10;
-const createEmptyPhotoField = () => ({ id: createId(), fileName: '', previewUrl: '' });
+type PhotoField = { id: string; file?: File; fileName: string; previewUrl: string };
+
+const createEmptyPhotoField = (): PhotoField => ({ id: createId(), fileName: '', previewUrl: '' });
 
 function slugify(value: string): string {
   return value
@@ -247,7 +249,7 @@ function AddProductContent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState('');
-  const [photoFields, setPhotoFields] = useState<Array<{ id: string; fileName: string; previewUrl: string }>>([]);
+  const [photoFields, setPhotoFields] = useState<PhotoField[]>([]);
   const photoFieldsRef = useRef(photoFields);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
@@ -402,25 +404,60 @@ function AddProductContent() {
   const canAddPhotoField = totalPhotoSlots < MAX_PRODUCT_PHOTOS;
 
   const handlePhotoChange = (fieldId: string, event: ChangeEvent<HTMLInputElement>) => {
-    const selectedPhoto = event.target.files?.[0] ?? null;
+    const selectedPhotos = Array.from(event.target.files ?? []);
+    const remainingPhotoSlots = Math.max(0, MAX_PRODUCT_PHOTOS - existingPhotoUrls.length);
 
-    setPhotoFields((currentFields) =>
-      currentFields.map((field) => {
-        if (field.id !== fieldId) {
-          return field;
+    setPhotoFields((currentFields) => {
+      const selectedFieldIndex = currentFields.findIndex((field) => field.id === fieldId);
+
+      if (selectedFieldIndex === -1) {
+        return currentFields;
+      }
+
+      const selectedField = currentFields[selectedFieldIndex];
+
+      if (selectedPhotos.length === 0) {
+        if (selectedField?.previewUrl) {
+          URL.revokeObjectURL(selectedField.previewUrl);
         }
 
-        if (field.previewUrl) {
+        return currentFields.map((field) =>
+          field.id === fieldId
+            ? {
+                ...field,
+                file: undefined,
+                fileName: '',
+                previewUrl: '',
+              }
+            : field,
+        );
+      }
+
+      const fieldsBeforeSelectedField = currentFields.slice(0, selectedFieldIndex);
+      const availableSlots = Math.max(0, remainingPhotoSlots - fieldsBeforeSelectedField.length);
+      const replacementFields = selectedPhotos.slice(0, availableSlots).map((photo) => ({
+        id: createId(),
+        file: photo,
+        fileName: photo.name,
+        previewUrl: URL.createObjectURL(photo),
+      }));
+
+      const fieldsAfterSelectedField = currentFields
+        .slice(selectedFieldIndex + 1)
+        .filter((field) => replacementFields.length <= 1 || field.file);
+      const nextFields = [...fieldsBeforeSelectedField, ...replacementFields, ...fieldsAfterSelectedField].slice(0, remainingPhotoSlots);
+      const retainedFieldIds = new Set(nextFields.map((field) => field.id));
+
+      currentFields.forEach((field) => {
+        if ((field.id === fieldId || !retainedFieldIds.has(field.id)) && field.previewUrl) {
           URL.revokeObjectURL(field.previewUrl);
         }
+      });
 
-        return {
-          ...field,
-          fileName: selectedPhoto?.name ?? '',
-          previewUrl: selectedPhoto ? URL.createObjectURL(selectedPhoto) : '',
-        };
-      }),
-    );
+      return nextFields;
+    });
+
+    event.target.value = '';
   };
 
   const addPhotoField = () => {
@@ -587,6 +624,15 @@ function AddProductContent() {
       const authToken = tokenResult.token || (await currentUser.getIdToken(true));
       const formData = new FormData(form);
       formData.set('authToken', authToken);
+      formData.delete('photos');
+      photoFields
+        .filter((field) => field.file)
+        .slice(0, Math.max(0, MAX_PRODUCT_PHOTOS - existingPhotoUrls.length))
+        .forEach((field) => {
+          if (field.file) {
+            formData.append('photos', field.file, field.file.name);
+          }
+        });
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
       const detail = error instanceof Error ? ` (${error.message})` : '';
@@ -674,7 +720,7 @@ function AddProductContent() {
                   : null}
                 {photoFields.map((field, index) => (
                   <label key={field.id} className={`photo-tile${field.previewUrl ? ' photo-tile--filled' : ''}`}>
-                    <input type="file" accept="image/*" name="photos" onChange={(event) => handlePhotoChange(field.id, event)} />
+                    <input type="file" accept="image/*" multiple onChange={(event) => handlePhotoChange(field.id, event)} />
                     {field.previewUrl ? (
                       <>
                         <img src={field.previewUrl} alt={field.fileName || `New product photo ${index + 1}`} />
