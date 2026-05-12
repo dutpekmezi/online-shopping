@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Form, useActionData, useSubmit } from 'react-router';
+import { Form, useActionData, useSearchParams, useSubmit } from 'react-router';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { AdminCombinationPricingTable } from '../components/pricing/AdminCombinationPricingTable';
 import { StorefrontVariationSelector } from '../components/pricing/StorefrontVariationSelector';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
 import { useAuth } from '../hooks/useAuth';
-import { fetchProducts } from '../lib/products';
+import { fetchProductById, fetchProducts } from '../lib/products';
 import { tableSeedPricingState } from '../lib/pricing/seed';
 import type { ProductCombination, ProductPricingState, VariationGroup, VariationOption } from '../lib/pricing/types';
 import { generateCombinations, validatePricingState } from '../lib/pricing/utils';
@@ -22,8 +22,8 @@ export const links: Route.LinksFunction = () => [
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: 'Add Product | Online Shopping' },
-    { name: 'description', content: 'Create listing style products with variation matrix pricing.' },
+    { title: 'Add / Edit Product | Online Shopping' },
+    { name: 'description', content: 'Create and edit listing style products with variation matrix pricing.' },
   ];
 }
 
@@ -67,6 +67,7 @@ type StoredProduct = {
 export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
   const authToken = String(formData.get('authToken') ?? '').trim();
+  const editProductId = String(formData.get('editProductId') ?? '').trim();
   const title = String(formData.get('title') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
   const basePrice = String(formData.get('basePrice') ?? '').trim();
@@ -114,7 +115,9 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   const db = await getAdminFirestore();
-  const nextProductId = randomUUID();
+  const nextProductId = editProductId || randomUUID();
+  const existingDocument = editProductId ? await db.collection('products').doc(editProductId).get() : null;
+  const existingProduct = existingDocument?.exists ? existingDocument.data() : null;
 
   const uploadedImageUrls: string[] = [];
 
@@ -146,7 +149,17 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
-  const imageUrls = uploadedImageUrls.length > 0 ? uploadedImageUrls : ['App/Images/MainSectionImage.JPG'];
+  const existingImageUrls = Array.isArray(existingProduct?.imageUrls)
+    ? existingProduct.imageUrls.filter((imageUrl): imageUrl is string => typeof imageUrl === 'string')
+    : [];
+  const fallbackExistingImageUrl = typeof existingProduct?.imageUrl === 'string' ? existingProduct.imageUrl : '';
+  const imageUrls = uploadedImageUrls.length > 0
+    ? uploadedImageUrls
+    : existingImageUrls.length > 0
+      ? existingImageUrls
+      : fallbackExistingImageUrl
+        ? [fallbackExistingImageUrl]
+        : ['App/Images/MainSectionImage.JPG'];
   const imageUrl = imageUrls[0];
 
   const draftProduct: StoredProduct = {
@@ -160,13 +173,22 @@ export async function action({ request }: Route.ActionArgs) {
     pricingState,
   };
 
-  await db.collection('products').doc(nextProductId).set({
-    ...draftProduct,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+  await db.collection('products').doc(nextProductId).set(
+    {
+      ...draftProduct,
+      isArchived: existingProduct?.isArchived === true,
+      createdAt: existingProduct?.createdAt ?? FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
 
-  return { message: `Taslak ürün #${nextProductId} Firestore'a kaydedildi.`, success: true } satisfies ActionData;
+  return {
+    message: editProductId
+      ? `Ürün #${nextProductId} güncellendi ve yayınlandı.`
+      : `Ürün #${nextProductId} yayınlandı.`,
+    success: true,
+  } satisfies ActionData;
 }
 
 const initialPricingState: ProductPricingState = {
@@ -177,11 +199,17 @@ const initialPricingState: ProductPricingState = {
 
 function AddProductContent() {
   const actionData = useActionData<ActionData>();
+  const [searchParams] = useSearchParams();
+  const editProductId = searchParams.get('productId')?.trim() ?? '';
+  const isEditing = editProductId.length > 0;
   const submit = useSubmit();
   const { user } = useAuth();
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [productLoading, setProductLoading] = useState(false);
+  const [productError, setProductError] = useState<string | null>(null);
+  const [existingPhotoUrls, setExistingPhotoUrls] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState('0');
@@ -225,6 +253,57 @@ function AddProductContent() {
       isSubscribed = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    async function loadEditableProduct() {
+      if (!editProductId) {
+        setProductError(null);
+        setExistingPhotoUrls([]);
+        return;
+      }
+
+      setProductLoading(true);
+      setProductError(null);
+
+      try {
+        const editableProduct = await fetchProductById(editProductId);
+
+        if (!isSubscribed) {
+          return;
+        }
+
+        if (!editableProduct) {
+          setProductError('Düzenlenecek ürün bulunamadı.');
+          return;
+        }
+
+        setTitle(editableProduct.title);
+        setDescription(editableProduct.description);
+        setBasePrice(String(editableProduct.basePrice ?? editableProduct.pricingState?.basePrice ?? 0));
+        setSelectedCategory(editableProduct.category);
+        setNewCategory('');
+        setPricingState(editableProduct.pricingState ?? { ...initialPricingState, basePrice: Number(editableProduct.basePrice) || 0 });
+        setSelectedGroupId(editableProduct.pricingState?.variationGroups[0]?.id ?? '');
+        setExistingPhotoUrls(editableProduct.imageUrls?.length ? editableProduct.imageUrls : [editableProduct.imageUrl].filter(Boolean));
+      } catch (error) {
+        if (isSubscribed) {
+          setProductError(error instanceof Error ? error.message : 'Ürün bilgileri yüklenirken hata oluştu.');
+        }
+      } finally {
+        if (isSubscribed) {
+          setProductLoading(false);
+        }
+      }
+    }
+
+    loadEditableProduct();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [editProductId]);
 
   const [pricingState, setPricingState] = useState<ProductPricingState>(initialPricingState);
   const [variationNameInput, setVariationNameInput] = useState('');
@@ -404,7 +483,7 @@ function AddProductContent() {
       <main className="add-product-page">
         <section className="add-product-page__header">
           <p className="add-product-page__eyebrow">Admin Tools</p>
-          <h1>Add product with Etsy-style combination pricing</h1>
+          <h1>{isEditing ? 'Edit product with Etsy-style combination pricing' : 'Add product with Etsy-style combination pricing'}</h1>
           <p>Pricing is resolved only by combination matrix lookup. Max 2 pricing dimensions are supported.</p>
         </section>
 
@@ -413,7 +492,10 @@ function AddProductContent() {
           {actionData?.message && <p className={actionData.success ? 'hint success-text' : 'hint danger-text'}>{actionData.message}</p>}
           {categoriesLoading && <p className="hint">Kategoriler Firestore'dan yükleniyor...</p>}
           {categoriesError && <p className="hint danger-text">{categoriesError}</p>}
+          {productLoading && <p className="hint">Ürün bilgileri yükleniyor...</p>}
+          {productError && <p className="hint danger-text">{productError}</p>}
           <input type="hidden" name="authToken" value="" readOnly />
+          <input type="hidden" name="editProductId" value={editProductId} readOnly />
 
           {validationErrors.length > 0 && (
             <div className="validation-errors">
@@ -459,8 +541,15 @@ function AddProductContent() {
               >
                 + Add photo
               </button>
+              {isEditing && existingPhotoUrls.length > 0 ? (
+                <div className="existing-photos" aria-label="Mevcut ürün fotoğrafları">
+                  {existingPhotoUrls.map((photoUrl) => (
+                    <img key={photoUrl} src={photoUrl} alt="Mevcut ürün fotoğrafı" />
+                  ))}
+                </div>
+              ) : null}
               <span className="hint">
-                {photoFields.length}/{MAX_PRODUCT_PHOTOS} fotoğraf alanı açık. Her ürün Firestore'da en fazla 10 fotoğraf tutar.
+                {photoFields.length}/{MAX_PRODUCT_PHOTOS} fotoğraf alanı açık. Düzenleme sırasında yeni fotoğraf seçmezseniz mevcut fotoğraflar korunur.
               </span>
             </div>
 
@@ -665,7 +754,7 @@ function AddProductContent() {
 
           <div className="add-product-actions">
             <button type="submit" disabled={validationErrors.length > 0}>
-              Save as Draft
+              {isEditing ? 'Save and Publish' : 'Publish'}
             </button>
           </div>
         </Form>

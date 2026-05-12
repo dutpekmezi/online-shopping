@@ -1,7 +1,8 @@
 .product-card {
+  position: relative;
   border: 1px solid #e6e6e6;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   background: #fff;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
 }
@@ -11,17 +12,17 @@
   height: 220px;
   object-fit: cover;
   display: block;
+  border-radius: 12px 12px 0 0;
 }
 
 .product-card__content {
-  padding: 0.9rem 1rem 1.1rem;
+  padding: 0.9rem 2.75rem 1.1rem 1rem;
 }
 
 .product-card__title {
   font-size: 1.05rem;
   margin: 0;
 }
-
 
 .product-card__category {
   margin: 0.45rem 0 0;
@@ -41,9 +42,97 @@
   height: 100%;
   color: inherit;
   text-decoration: none;
+  overflow: hidden;
+  border-radius: 12px;
 }
 
-.product-card__link:focus-visible {
+.product-card__link:focus-visible,
+.product-card__options-button:focus-visible,
+.product-card__options-item:focus-visible {
   outline: 3px solid #c86f2e;
   outline-offset: 3px;
+}
+
+.product-card__options {
+  position: absolute;
+  top: calc(220px + 0.45rem);
+  right: 0.55rem;
+  z-index: 3;
+}
+
+.product-card__options-button {
+  width: 2rem;
+  min-height: 2.5rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.product-card__options-button:hover,
+.product-card__options-button[aria-expanded='true'] {
+  background: rgba(156, 163, 175, 0.18);
+  transform: translateY(-1px);
+}
+
+.product-card__options-button span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #1ed515;
+  display: block;
+}
+
+.product-card__options-menu {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  right: 0;
+  min-width: 9rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16);
+}
+
+.product-card__options-item {
+  width: 100%;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  text-decoration: none;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.product-card__options-item:hover {
+  background: #f3f4f6;
+  color: #0f5132;
+}
+
+.product-card__action-error {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0.75rem;
+  margin: 0;
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.85rem;
+  padding: 0.55rem 0.7rem;
+  z-index: 4;
 }

@@ -7,7 +7,11 @@ export function links() {
   return [{ rel: 'stylesheet', href: style }];
 }
 
-export function ProductCardList() {
+type ProductCardListProps = {
+  archived?: boolean;
+};
+
+export function ProductCardList({ archived = false }: ProductCardListProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tümü');
@@ -22,7 +26,7 @@ export function ProductCardList() {
       setErrorMessage(null);
 
       try {
-        const nextProducts = await fetchProducts();
+        const nextProducts = await fetchProducts({ archived });
 
         if (isSubscribed) {
           setProducts(nextProducts);
@@ -52,7 +56,7 @@ export function ProductCardList() {
     return () => {
       isSubscribed = false;
     };
-  }, []);
+  }, [archived]);
 
   const allCategories = useMemo(
     () => ['Tümü', ...new Set(products.map((product) => product.category).filter(Boolean))],
@@ -117,7 +121,12 @@ export function ProductCardList() {
       {!isLoading && !errorMessage && filteredProducts.length > 0 && (
         <div className="product-card-list__grid">
           {filteredProducts.map((product) => (
-            <ProductCard key={product.productId} product={product} />
+            <ProductCard
+              key={product.productId}
+              product={product}
+              onProductArchived={(productId) => setProducts((currentProducts) => currentProducts.filter((item) => item.productId !== productId))}
+              onProductDeleted={(productId) => setProducts((currentProducts) => currentProducts.filter((item) => item.productId !== productId))}
+            />
           ))}
         </div>
       )}
