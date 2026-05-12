@@ -297,3 +297,34 @@ button.danger {
 .success-text {
   color: #047857;
 }
+
+.add-product-publish-panel {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+}
+
+.add-product-publish-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-product-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: add-product-spin 0.75s linear infinite;
+}
+
+.add-product-publish-status {
+  margin: 0;
+}
+
+@keyframes add-product-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
