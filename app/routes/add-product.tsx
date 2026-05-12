@@ -79,11 +79,7 @@ export async function action({ request }: Route.ActionArgs) {
     .filter((photo): photo is File => photo instanceof File && photo.size > 0)
     .slice(0, MAX_PRODUCT_PHOTOS);
 
-  const category = newCategory || selectedCategory;
-
-  if (!title || !description || !category) {
-    return { message: 'Başlık, açıklama ve kategori zorunlu.', success: false } satisfies ActionData;
-  }
+  const submittedCategory = newCategory || selectedCategory;
 
   let pricingState: ProductPricingState;
 
@@ -116,8 +112,21 @@ export async function action({ request }: Route.ActionArgs) {
 
   const db = await getAdminFirestore();
   const nextProductId = editProductId || randomUUID();
-  const existingDocument = editProductId ? await db.collection('products').doc(editProductId).get() : null;
+  const isEditing = editProductId.length > 0;
+  const existingDocument = isEditing ? await db.collection('products').doc(editProductId).get() : null;
   const existingProduct = existingDocument?.exists ? existingDocument.data() : null;
+
+  if (isEditing && !existingProduct) {
+    return { message: 'Düzenlenecek ürün bulunamadı.', success: false } satisfies ActionData;
+  }
+
+  const resolvedTitle = title || (isEditing && typeof existingProduct?.title === 'string' ? existingProduct.title.trim() : '');
+  const resolvedDescription = description || (isEditing && typeof existingProduct?.description === 'string' ? existingProduct.description.trim() : '');
+  const resolvedCategory = submittedCategory || (isEditing && typeof existingProduct?.category === 'string' ? existingProduct.category.trim() : '');
+
+  if (!resolvedTitle || !resolvedDescription || !resolvedCategory) {
+    return { message: 'Başlık, açıklama ve kategori zorunlu.', success: false } satisfies ActionData;
+  }
 
   const uploadedImageUrls: string[] = [];
 
@@ -159,16 +168,21 @@ export async function action({ request }: Route.ActionArgs) {
       ? existingImageUrls
       : fallbackExistingImageUrl
         ? [fallbackExistingImageUrl]
-        : ['App/Images/MainSectionImage.JPG'];
+        : [];
+
+  if (imageUrls.length === 0) {
+    return { message: 'En az bir ürün fotoğrafı zorunlu.', success: false } satisfies ActionData;
+  }
+
   const imageUrl = imageUrls[0];
 
   const draftProduct: StoredProduct = {
     productId: nextProductId,
-    title,
-    description,
+    title: resolvedTitle,
+    description: resolvedDescription,
     imageUrl,
     imageUrls,
-    category,
+    category: resolvedCategory,
     basePrice,
     pricingState,
   };
@@ -518,7 +532,7 @@ function AddProductContent() {
                 value={title}
                 name="title"
                 onChange={(event) => setTitle(event.target.value)}
-                required
+                required={!isEditing}
               />
               <span className="hint">{title.length}/140</span>
             </label>
@@ -561,7 +575,7 @@ function AddProductContent() {
                 value={description}
                 name="description"
                 onChange={(event) => setDescription(event.target.value)}
-                required
+                required={!isEditing}
               />
             </label>
 
