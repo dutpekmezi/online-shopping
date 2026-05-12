@@ -10,6 +10,32 @@ export function links() {
   return [{ rel: 'stylesheet', href: style }];
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+  }).format(value);
+}
+
+function parsePrice(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[^\d.,-]/g, '').replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function getPreviewPrice(product: Product) {
+  return product.pricingState?.basePrice ?? parsePrice(product.basePrice);
+}
+
 type ProductCardProps = {
   product: Product;
   onProductArchived?: (productId: string) => void;
@@ -21,6 +47,7 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const previewPrice = getPreviewPrice(product);
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
@@ -81,7 +108,7 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
         <div className="product-card__content">
           <h2 className="product-card__title">{product.title}</h2>
           <p className="product-card__category">Kategori: {product.category}</p>
-          <p className="product-card__description">{product.description}</p>
+          <p className="product-card__price">{formatCurrency(previewPrice)}</p>
         </div>
       </Link>
 

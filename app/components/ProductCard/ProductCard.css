@@ -31,10 +31,12 @@
   font-weight: 600;
 }
 
-.product-card__description {
-  color: #555;
-  line-height: 1.4;
-  margin: 0.5rem 0 0;
+.product-card__price {
+  color: #241d18;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0.65rem 0 0;
 }
 
 .product-card__link {
