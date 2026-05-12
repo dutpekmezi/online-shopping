@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { deleteDoc, deleteField, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Link } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
@@ -37,6 +37,14 @@ function getPreviewPrice(product: Product) {
   return product.pricingState?.basePrice ?? parsePrice(product.basePrice);
 }
 
+function getProductImages(product: Product) {
+  const candidates = [product.imageUrl, ...(product.imageUrls ?? []), ...(product.images ?? [])]
+    .map((image) => image?.trim())
+    .filter((image): image is string => Boolean(image));
+
+  return Array.from(new Set(candidates));
+}
+
 type ProductCardProps = {
   product: Product;
   onProductArchived?: (productId: string) => void;
@@ -47,8 +55,43 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
   const { isAdmin } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isImageHovered, setIsImageHovered] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const previewPrice = getPreviewPrice(product);
+  const productImages = useMemo(() => getProductImages(product), [product]);
+  const hasMultipleImages = productImages.length > 1;
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+    setIsImageHovered(false);
+  }, [product.productId]);
+
+  useEffect(() => {
+    if (!isImageHovered || !hasMultipleImages) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setActiveImageIndex((currentIndex) => (currentIndex + 1) % productImages.length);
+    }, 1500);
+
+    return () => window.clearInterval(intervalId);
+  }, [hasMultipleImages, isImageHovered, productImages.length]);
+
+  const handleImageMouseEnter = () => {
+    if (!hasMultipleImages) {
+      return;
+    }
+
+    setIsImageHovered(true);
+    setActiveImageIndex((currentIndex) => (currentIndex + 1) % productImages.length);
+  };
+
+  const handleImageMouseLeave = () => {
+    setIsImageHovered(false);
+    setActiveImageIndex(0);
+  };
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
@@ -106,10 +149,19 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
   return (
     <article className="product-card">
       <Link className="product-card__link" to={`/products/${product.productId}`} aria-label={`View details for ${product.title}`}>
-        <img className="product-card__image" src={product.imageUrl} alt={product.title} loading="lazy" />
+        <div className="product-card__image-wrap" onMouseEnter={handleImageMouseEnter} onMouseLeave={handleImageMouseLeave}>
+          {productImages.map((image, index) => (
+            <img
+              className={`product-card__image${index === activeImageIndex ? ' product-card__image--active' : ''}`}
+              src={image}
+              alt={index === 0 ? product.title : `${product.title} ${index + 1}`}
+              loading={index === 0 ? 'lazy' : 'eager'}
+              key={image}
+            />
+          ))}
+        </div>
         <div className="product-card__content">
           <h2 className="product-card__title">{product.title}</h2>
-          <p className="product-card__category">Kategori: {product.category}</p>
           <p className="product-card__price">{formatCurrency(previewPrice)}</p>
         </div>
       </Link>

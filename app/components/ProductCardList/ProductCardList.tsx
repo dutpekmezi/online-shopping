@@ -7,6 +7,24 @@ export function links() {
   return [{ rel: 'stylesheet', href: style }];
 }
 
+function parsePrice(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[^\d.,-]/g, '').replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function getPreviewPrice(product: Product) {
+  return product.pricingState?.basePrice ?? parsePrice(product.basePrice);
+}
+
 type ProductCardListProps = {
   archived?: boolean;
 };
@@ -15,6 +33,7 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tümü');
+  const [sortOrder, setSortOrder] = useState('newest');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -65,49 +84,74 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
 
   const filteredProducts = useMemo(() => {
     const searchValue = query.trim().toLowerCase();
-
-    return products.filter((product) => {
+    const nextProducts = products.filter((product) => {
       const matchesCategory = selectedCategory === 'Tümü' || product.category === selectedCategory;
       const normalizedText = `${product.title} ${product.description} ${product.category}`.toLowerCase();
       const matchesSearch = !searchValue || normalizedText.includes(searchValue);
 
       return matchesCategory && matchesSearch;
     });
-  }, [products, query, selectedCategory]);
+
+    if (sortOrder === 'price-low') {
+      return [...nextProducts].sort((first, second) => getPreviewPrice(first) - getPreviewPrice(second));
+    }
+
+    if (sortOrder === 'price-high') {
+      return [...nextProducts].sort((first, second) => getPreviewPrice(second) - getPreviewPrice(first));
+    }
+
+    return nextProducts;
+  }, [products, query, selectedCategory, sortOrder]);
 
   return (
     <section className="product-card-list" aria-label="Product list">
       <div className="product-card-list__toolbar">
-        <div className="product-card-list__field">
-          <label htmlFor="product-search" className="product-card-list__label">
-            Ürün Filtrele
-          </label>
-          <input
-            id="product-search"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Başlık veya açıklama ile ara"
-            className="product-card-list__search"
-          />
+        <div className="product-card-list__filters">
+          <span className="product-card-list__label">Filtre:</span>
+
+          <div className="product-card-list__field">
+            <label htmlFor="product-category" className="product-card-list__label">
+              Stok durumu
+            </label>
+            <select
+              id="product-category"
+              value={selectedCategory}
+              onChange={(event) => setSelectedCategory(event.target.value)}
+              className="product-card-list__select"
+            >
+              {allCategories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="product-card-list__field">
+            <label htmlFor="product-search" className="product-card-list__label">
+              Fiyat
+            </label>
+            <input
+              id="product-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Ürün ara"
+              className="product-card-list__search"
+            />
+          </div>
         </div>
 
-        <div className="product-card-list__field">
-          <label htmlFor="product-category" className="product-card-list__label">
-            Kategori
+        <div className="product-card-list__sort">
+          <label htmlFor="product-sort" className="product-card-list__sort-label">
+            Sıralama ölçütü:
           </label>
-          <select
-            id="product-category"
-            value={selectedCategory}
-            onChange={(event) => setSelectedCategory(event.target.value)}
-            className="product-card-list__select"
-          >
-            {allCategories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
+          <select id="product-sort" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} className="product-card-list__select">
+            <option value="newest">En yeni</option>
+            <option value="price-low">Fiyat, düşükten yükseğe</option>
+            <option value="price-high">Fiyat, yüksekten düşüğe</option>
           </select>
+          <span className="product-card-list__count">{filteredProducts.length} ürün</span>
         </div>
       </div>
 

@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { AuthStatus } from "~/components/auth/AuthStatus";
 import { useAuth } from "~/hooks/useAuth";
 import { db } from "~/lib/firebase.client";
+import { CART_UPDATED_EVENT, getCartItemCount, readCartItems } from "~/lib/cart";
 import style from "./NavBar.css?url";
 
 export function links() {
@@ -160,7 +161,22 @@ export function NavBar() {
   const [isSocialEditorOpen, setIsSocialEditorOpen] = useState(false);
   const [socialEditorMessage, setSocialEditorMessage] = useState<string | null>(null);
   const [isSavingSocialLinks, setIsSavingSocialLinks] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const socialEditorRef = useRef<HTMLDivElement | null>(null);
+
+
+  useEffect(() => {
+    const refreshCartCount = () => setCartCount(getCartItemCount(readCartItems()));
+
+    refreshCartCount();
+    window.addEventListener(CART_UPDATED_EVENT, refreshCartCount);
+    window.addEventListener("storage", refreshCartCount);
+
+    return () => {
+      window.removeEventListener(CART_UPDATED_EVENT, refreshCartCount);
+      window.removeEventListener("storage", refreshCartCount);
+    };
+  }, []);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -367,10 +383,10 @@ export function NavBar() {
           <button type="button" aria-label="Search" className="navbar__icon-button">
             🔍
           </button>
-          <button type="button" aria-label="Cart" className="navbar__icon-button navbar__cart-button">
+          <Link to="/cart" aria-label="Cart" className="navbar__icon-button navbar__cart-button">
             🛒
-            <span className="navbar__cart-count">0</span>
-          </button>
+            <span className="navbar__cart-count">{cartCount}</span>
+          </Link>
           <AuthStatus />
         </div>
       </div>

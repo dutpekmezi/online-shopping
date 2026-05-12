@@ -6,6 +6,7 @@ import navBarStylesHref from '../components/NavBar/NavBar.css?url';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase.client';
 import { fetchProductById, PRODUCTS_COLLECTION, type Product } from '../lib/products';
+import { addCartItem } from '../lib/cart';
 import { resolveCombination } from '../lib/pricing/utils';
 import type { ProductCombination, ProductPricingState, VariationGroup } from '../lib/pricing/types';
 import type { Route } from './+types/product-detail';
@@ -170,6 +171,7 @@ type PurchasePanelProps = {
 
 function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePanelProps) {
   const [quantity, setQuantity] = useState(1);
+  const [cartMessage, setCartMessage] = useState<string | null>(null);
   const pricingState = useMemo(() => getPricingState(product), [product]);
   const selectedCombination = useMemo(
     () => resolveCombination(selectedIds, pricingState.combinations),
@@ -184,6 +186,26 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
   const discountPercentage = hasComparePrice ? Math.round(((comparePrice - currentPrice) / comparePrice) * 100) : 0;
   const stock = activeCombination?.stock;
   const isUnavailable = Boolean(activeCombination && !activeCombination.enabled);
+  const optionSummary = pricingState.variationGroups
+    .map((group, groupIndex) => {
+      const selectedOption = group.options.find((option) => option.id === selectedIds[groupIndex]);
+      return selectedOption ? `${group.name}: ${selectedOption.label}` : '';
+    })
+    .filter(Boolean)
+    .join(' / ');
+
+  const handleAddToCart = () => {
+    addCartItem({
+      id: `${product.productId}:${selectedIds.filter(Boolean).join('|') || 'default'}`,
+      productId: product.productId,
+      title: product.title,
+      imageUrl: product.imageUrl,
+      price: currentPrice,
+      quantity,
+      optionSummary: optionSummary || undefined,
+    });
+    setCartMessage('Ürün sepetinize eklendi.');
+  };
 
   return (
     <aside className="product-detail__purchase-card" aria-label="Purchase options">
@@ -241,13 +263,15 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
         <button className="product-detail__button product-detail__button--primary" type="button" disabled={isUnavailable}>
           Buy it now
         </button>
-        <button className="product-detail__button product-detail__button--secondary" type="button" disabled={isUnavailable}>
+        <button className="product-detail__button product-detail__button--secondary" type="button" disabled={isUnavailable} onClick={handleAddToCart}>
           Add to cart
         </button>
         <button className="product-detail__button product-detail__button--ghost" type="button">
           Add to collection
         </button>
       </div>
+
+      {cartMessage ? <p className="product-detail__cart-message">{cartMessage}</p> : null}
 
     </aside>
   );
