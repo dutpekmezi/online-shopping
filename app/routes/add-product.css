@@ -65,11 +65,35 @@
   font-size: 0.9rem;
 }
 
-.photo-list {
-  list-style: disc;
-  margin: 0;
-  padding-left: 1.25rem;
-  color: #333;
+.photo-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.photo-fields__label {
+  font-weight: 600;
+}
+
+.photo-field {
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.add-photo-button {
+  align-self: flex-start;
+  border: 1px solid #222;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.add-photo-button:disabled {
+  border-color: #b7b7b7;
+  color: #777;
+  cursor: not-allowed;
 }
 
 .switch-row {
