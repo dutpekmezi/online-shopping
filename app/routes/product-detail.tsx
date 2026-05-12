@@ -1,8 +1,11 @@
 import { Link, useNavigate, useParams } from 'react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { deleteDoc, deleteField, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
-import { fetchProductById, type Product } from '../lib/products';
+import { useAuth } from '../hooks/useAuth';
+import { db } from '../lib/firebase.client';
+import { fetchProductById, PRODUCTS_COLLECTION, type Product } from '../lib/products';
 import { resolveCombination } from '../lib/pricing/utils';
 import type { ProductCombination, ProductPricingState, VariationGroup } from '../lib/pricing/types';
 import type { Route } from './+types/product-detail';
@@ -23,9 +26,10 @@ export function meta({}: Route.MetaArgs) {
 const fallbackImageLabel = 'Product image unavailable';
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat('tr-TR', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'TRY',
+    currency: 'USD',
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
     maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
   }).format(value);
 }
@@ -58,6 +62,104 @@ function getPricingState(product: Product): ProductPricingState {
     variationGroups: product.pricingState?.variationGroups ?? [],
     combinations: product.pricingState?.combinations ?? [],
   };
+}
+
+
+type AdminProductOptionsProps = {
+  product: Product;
+  onArchived: (isArchived: boolean) => void;
+  onDeleted: () => void;
+};
+
+function AdminProductOptions({ product, onArchived, onDeleted }: AdminProductOptionsProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isMenuOpen]);
+
+  const handleArchive = async () => {
+    const shouldArchive = product.isArchived !== true;
+    setActionError(null);
+
+    try {
+      await updateDoc(doc(db, PRODUCTS_COLLECTION, product.productId), {
+        isArchived: shouldArchive,
+        archivedAt: shouldArchive ? serverTimestamp() : deleteField(),
+        updatedAt: serverTimestamp(),
+      });
+      setIsMenuOpen(false);
+      onArchived(shouldArchive);
+    } catch (error) {
+      console.error(`Product could not be ${shouldArchive ? 'archived' : 'restored'}.`, error);
+      setActionError(`Ürün ${shouldArchive ? 'arşivlenemedi' : 'koleksiyonlara geri alınamadı'}. Admin yetkinizi kontrol edin.`);
+    }
+  };
+
+  const handleDelete = async () => {
+    const shouldDelete = window.confirm(`"${product.title}" ürününü kalıcı olarak silmek istediğinizden emin misiniz?`);
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setActionError(null);
+
+    try {
+      await deleteDoc(doc(db, PRODUCTS_COLLECTION, product.productId));
+      setIsMenuOpen(false);
+      onDeleted();
+    } catch (error) {
+      console.error('Product could not be deleted.', error);
+      setActionError('Ürün silinemedi. Admin yetkinizi kontrol edin.');
+    }
+  };
+
+  return (
+    <div className="product-detail__admin-options" ref={menuRef}>
+      <button
+        type="button"
+        className="product-detail__admin-options-button"
+        aria-label={`${product.title} seçenekleri`}
+        aria-expanded={isMenuOpen}
+        onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
+      >
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+      </button>
+
+      {isMenuOpen ? (
+        <div className="product-detail__admin-options-menu" role="menu" aria-label={`${product.title} seçenekleri`}>
+          <Link className="product-detail__admin-options-item" to={`/add-product?productId=${encodeURIComponent(product.productId)}`} role="menuitem">
+            Edit
+          </Link>
+          <button type="button" className="product-detail__admin-options-item" role="menuitem" onClick={handleDelete}>
+            Delete
+          </button>
+          <button type="button" className="product-detail__admin-options-item" role="menuitem" onClick={handleArchive}>
+            {product.isArchived ? 'Restore to Collections' : 'Archive'}
+          </button>
+        </div>
+      ) : null}
+
+      {actionError ? <p className="product-detail__admin-options-error">{actionError}</p> : null}
+    </div>
+  );
 }
 
 type PurchasePanelProps = {
@@ -242,6 +344,7 @@ function ProductAccordions({ product }: { product: Product }) {
 export default function ProductDetail() {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -324,7 +427,16 @@ export default function ProductDetail() {
           <>
             <section className="product-detail__layout">
               <ProductGallery images={images} title={product.title} />
-              <PurchasePanel product={product} selectedIds={selectedIds} onSelectVariation={updateSelection} />
+              <div className="product-detail__purchase-column">
+                {isAdmin ? (
+                  <AdminProductOptions
+                    product={product}
+                    onArchived={(isArchived) => setProduct((currentProduct) => (currentProduct ? { ...currentProduct, isArchived } : currentProduct))}
+                    onDeleted={() => navigate('/shop')}
+                  />
+                ) : null}
+                <PurchasePanel product={product} selectedIds={selectedIds} onSelectVariation={updateSelection} />
+              </div>
             </section>
             <ProductAccordions product={product} />
           </>

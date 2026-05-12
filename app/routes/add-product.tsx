@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Form, useActionData, useSearchParams, useSubmit } from 'react-router';
+import { Form, useActionData, useNavigation, useSearchParams, useSubmit } from 'react-router';
 import { AuthGuard } from '../components/auth/AuthGuard';
 import { AdminCombinationPricingTable } from '../components/pricing/AdminCombinationPricingTable';
 import { StorefrontVariationSelector } from '../components/pricing/StorefrontVariationSelector';
@@ -219,6 +219,7 @@ function AddProductContent() {
   const editProductId = searchParams.get('productId')?.trim() ?? '';
   const isEditing = editProductId.length > 0;
   const submit = useSubmit();
+  const navigation = useNavigation();
   const { user } = useAuth();
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -234,6 +235,7 @@ function AddProductContent() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isPreparingPublish, setIsPreparingPublish] = useState(false);
 
   useEffect(() => {
     photoFieldsRef.current = photoFields;
@@ -506,6 +508,13 @@ function AddProductContent() {
     ...pricingState,
     basePrice: Number(basePrice) || 0,
   });
+  const isPublishing = isPreparingPublish || navigation.state === 'submitting' || navigation.state === 'loading';
+
+  useEffect(() => {
+    if (navigation.state === 'idle') {
+      setIsPreparingPublish(false);
+    }
+  }, [navigation.state]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -514,10 +523,12 @@ function AddProductContent() {
     const currentUser = user;
 
     setSubmitError(null);
+    setIsPreparingPublish(true);
 
     if (!currentUser) {
       const message = 'Ürün kaydetmek için admin olarak giriş yapmalısınız.';
       setSubmitError(message);
+      setIsPreparingPublish(false);
       window.alert(message);
       return;
     }
@@ -528,6 +539,7 @@ function AddProductContent() {
       if (tokenResult.claims.admin !== true) {
         const message = 'Admin yetkisi yenilenemedi. Lütfen çıkış yapıp tekrar giriş yapın.';
         setSubmitError(message);
+        setIsPreparingPublish(false);
         window.alert(message);
         return;
       }
@@ -540,6 +552,7 @@ function AddProductContent() {
       const detail = error instanceof Error ? ` (${error.message})` : '';
       const message = `Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.${detail}`;
       setSubmitError(message);
+      setIsPreparingPublish(false);
       window.alert(message);
     }
   };
@@ -556,7 +569,6 @@ function AddProductContent() {
 
         <Form className="add-product-form" method="post" encType="multipart/form-data" onSubmit={handleSubmit}>
           {submitError && <p className="hint danger-text">{submitError}</p>}
-          {actionData?.message && <p className={actionData.success ? 'hint success-text' : 'hint danger-text'}>{actionData.message}</p>}
           {categoriesLoading && <p className="hint">Kategoriler Firestore'dan yükleniyor...</p>}
           {categoriesError && <p className="hint danger-text">{categoriesError}</p>}
           {productLoading && <p className="hint">Ürün bilgileri yükleniyor...</p>}
@@ -690,7 +702,7 @@ function AddProductContent() {
           <section className="add-product-section">
             <h2>Base Price</h2>
             <label>
-              Base Price (₺)
+              Base Price ($)
               <input
                 type="number"
                 min="0"
@@ -851,9 +863,26 @@ function AddProductContent() {
           </section>
 
           <div className="add-product-actions">
-            <button type="submit" disabled={validationErrors.length > 0}>
-              {isEditing ? 'Save and Publish' : 'Publish'}
-            </button>
+            <div className="add-product-publish-panel">
+              <button type="submit" disabled={validationErrors.length > 0 || isPublishing}>
+                {isPublishing ? (
+                  <span className="add-product-publish-loading" aria-live="polite">
+                    <span className="add-product-spinner" aria-hidden="true" />
+                    Publishing...
+                  </span>
+                ) : isEditing ? (
+                  'Save and Publish'
+                ) : (
+                  'Publish'
+                )}
+              </button>
+              {isPublishing ? <p className="hint add-product-publish-status">Publishing, please wait...</p> : null}
+              {actionData?.message ? (
+                <p className={actionData.success ? 'hint success-text add-product-publish-status' : 'hint danger-text add-product-publish-status'}>
+                  {actionData.success ? 'Succeeded.' : actionData.message}
+                </p>
+              ) : null}
+            </div>
           </div>
         </Form>
       </main>

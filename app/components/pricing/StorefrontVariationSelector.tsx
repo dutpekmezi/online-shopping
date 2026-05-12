@@ -2,6 +2,15 @@ import { useMemo, useState } from 'react';
 import type { ProductCombination, VariationGroup } from '../../lib/pricing/types';
 import { resolveCombination } from '../../lib/pricing/utils';
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+  }).format(value);
+}
+
 type Props = {
   basePrice: number;
   groups: VariationGroup[];
@@ -46,7 +55,7 @@ export function StorefrontVariationSelector({ basePrice, groups, combinations }:
 
       <div className="storefront-selector__summary">
         <p>
-          <strong>Resolved Price:</strong> ₺{resolvedPrice}
+          <strong>Resolved Price:</strong> {formatCurrency(resolvedPrice)}
         </p>
         <p>
           <strong>Stock:</strong>{' '}
