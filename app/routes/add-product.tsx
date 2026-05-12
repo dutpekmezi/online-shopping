@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Form, useActionData, useSearchParams, useSubmit } from 'react-router';
 import { AuthGuard } from '../components/auth/AuthGuard';
@@ -29,6 +29,7 @@ export function meta({}: Route.MetaArgs) {
 
 const createId = () => Math.random().toString(36).slice(2, 10);
 const MAX_PRODUCT_PHOTOS = 10;
+const createEmptyPhotoField = () => ({ id: createId(), fileName: '', previewUrl: '' });
 
 function slugify(value: string): string {
   return value
@@ -77,6 +78,11 @@ export async function action({ request }: Route.ActionArgs) {
   const photos = formData
     .getAll('photos')
     .filter((photo): photo is File => photo instanceof File && photo.size > 0)
+    .slice(0, MAX_PRODUCT_PHOTOS);
+  const retainedImageUrls = formData
+    .getAll('existingPhotoUrls')
+    .map((imageUrl) => String(imageUrl).trim())
+    .filter(Boolean)
     .slice(0, MAX_PRODUCT_PHOTOS);
 
   const submittedCategory = newCategory || selectedCategory;
@@ -162,13 +168,9 @@ export async function action({ request }: Route.ActionArgs) {
     ? existingProduct.imageUrls.filter((imageUrl): imageUrl is string => typeof imageUrl === 'string')
     : [];
   const fallbackExistingImageUrl = typeof existingProduct?.imageUrl === 'string' ? existingProduct.imageUrl : '';
-  const imageUrls = uploadedImageUrls.length > 0
-    ? uploadedImageUrls
-    : existingImageUrls.length > 0
-      ? existingImageUrls
-      : fallbackExistingImageUrl
-        ? [fallbackExistingImageUrl]
-        : [];
+  const defaultExistingImageUrls = existingImageUrls.length > 0 ? existingImageUrls : [fallbackExistingImageUrl].filter(Boolean);
+  const retainedExistingImageUrls = isEditing ? retainedImageUrls.filter((imageUrl) => defaultExistingImageUrls.includes(imageUrl)) : [];
+  const imageUrls = [...retainedExistingImageUrls, ...uploadedImageUrls].slice(0, MAX_PRODUCT_PHOTOS);
 
   if (imageUrls.length === 0) {
     return { message: 'En az bir ürün fotoğrafı zorunlu.', success: false } satisfies ActionData;
@@ -227,10 +229,25 @@ function AddProductContent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState('0');
-  const [photoFields, setPhotoFields] = useState([{ id: createId(), fileName: '' }]);
+  const [photoFields, setPhotoFields] = useState<Array<{ id: string; fileName: string; previewUrl: string }>>([createEmptyPhotoField()]);
+  const photoFieldsRef = useRef(photoFields);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    photoFieldsRef.current = photoFields;
+  }, [photoFields]);
+
+  useEffect(() => {
+    return () => {
+      photoFieldsRef.current.forEach((field) => {
+        if (field.previewUrl) {
+          URL.revokeObjectURL(field.previewUrl);
+        }
+      });
+    };
+  }, []);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -275,6 +292,7 @@ function AddProductContent() {
       if (!editProductId) {
         setProductError(null);
         setExistingPhotoUrls([]);
+        setPhotoFields([createEmptyPhotoField()]);
         return;
       }
 
@@ -300,7 +318,9 @@ function AddProductContent() {
         setNewCategory('');
         setPricingState(editableProduct.pricingState ?? { ...initialPricingState, basePrice: Number(editableProduct.basePrice) || 0 });
         setSelectedGroupId(editableProduct.pricingState?.variationGroups[0]?.id ?? '');
-        setExistingPhotoUrls(editableProduct.imageUrls?.length ? editableProduct.imageUrls : [editableProduct.imageUrl].filter(Boolean));
+        const editablePhotoUrls = editableProduct.imageUrls?.length ? editableProduct.imageUrls : [editableProduct.imageUrl].filter(Boolean);
+        setExistingPhotoUrls(editablePhotoUrls);
+        setPhotoFields(editablePhotoUrls.length >= MAX_PRODUCT_PHOTOS ? [] : [createEmptyPhotoField()]);
       } catch (error) {
         if (isSubscribed) {
           setProductError(error instanceof Error ? error.message : 'Ürün bilgileri yüklenirken hata oluştu.');
@@ -335,21 +355,54 @@ function AddProductContent() {
   const validationErrors = useMemo(() => validatePricingState(pricingState), [pricingState]);
   const canAddVariationGroup = variationNameInput.trim().length > 0 && pricingState.variationGroups.length < 2;
 
+  const totalPhotoSlots = existingPhotoUrls.length + photoFields.length;
+  const canAddPhotoField = totalPhotoSlots < MAX_PRODUCT_PHOTOS;
+
   const handlePhotoChange = (fieldId: string, event: ChangeEvent<HTMLInputElement>) => {
     const selectedPhoto = event.target.files?.[0] ?? null;
 
     setPhotoFields((currentFields) =>
-      currentFields.map((field) => (field.id === fieldId ? { ...field, fileName: selectedPhoto?.name ?? '' } : field)),
+      currentFields.map((field) => {
+        if (field.id !== fieldId) {
+          return field;
+        }
+
+        if (field.previewUrl) {
+          URL.revokeObjectURL(field.previewUrl);
+        }
+
+        return {
+          ...field,
+          fileName: selectedPhoto?.name ?? '',
+          previewUrl: selectedPhoto ? URL.createObjectURL(selectedPhoto) : '',
+        };
+      }),
     );
   };
 
   const addPhotoField = () => {
     setPhotoFields((currentFields) => {
-      if (currentFields.length >= MAX_PRODUCT_PHOTOS) {
+      if (existingPhotoUrls.length + currentFields.length >= MAX_PRODUCT_PHOTOS) {
         return currentFields;
       }
 
-      return [...currentFields, { id: createId(), fileName: '' }];
+      return [...currentFields, createEmptyPhotoField()];
+    });
+  };
+
+  const removeExistingPhoto = (photoUrl: string) => {
+    setExistingPhotoUrls((currentUrls) => currentUrls.filter((currentUrl) => currentUrl !== photoUrl));
+  };
+
+  const removePhotoField = (fieldId: string) => {
+    setPhotoFields((currentFields) => {
+      const removedField = currentFields.find((field) => field.id === fieldId);
+      if (removedField?.previewUrl) {
+        URL.revokeObjectURL(removedField.previewUrl);
+      }
+
+      const nextFields = currentFields.filter((field) => field.id !== fieldId);
+      return nextFields.length > 0 || existingPhotoUrls.length >= MAX_PRODUCT_PHOTOS ? nextFields : [createEmptyPhotoField()];
     });
   };
 
@@ -539,31 +592,62 @@ function AddProductContent() {
 
             <div className="photo-fields">
               <span className="photo-fields__label">Photos</span>
-              {photoFields.map((field, index) => (
-                <label key={field.id} className="photo-field">
-                  Fotoğraf {index + 1}
-                  <input type="file" accept="image/*" name="photos" onChange={(event) => handlePhotoChange(field.id, event)} />
-                  {field.fileName && <span className="hint">Seçilen dosya: {field.fileName}</span>}
-                </label>
-              ))}
-              <button
-                type="button"
-                className="add-photo-button"
-                onClick={addPhotoField}
-                disabled={photoFields.length >= MAX_PRODUCT_PHOTOS}
-                title={photoFields.length >= MAX_PRODUCT_PHOTOS ? 'En fazla 10 fotoğraf ekleyebilirsiniz.' : undefined}
-              >
-                + Add photo
-              </button>
-              {isEditing && existingPhotoUrls.length > 0 ? (
-                <div className="existing-photos" aria-label="Mevcut ürün fotoğrafları">
-                  {existingPhotoUrls.map((photoUrl) => (
-                    <img key={photoUrl} src={photoUrl} alt="Mevcut ürün fotoğrafı" />
-                  ))}
-                </div>
-              ) : null}
+              <div className="photo-tile-grid">
+                {isEditing
+                  ? existingPhotoUrls.map((photoUrl, index) => (
+                      <div key={photoUrl} className="photo-tile photo-tile--filled">
+                        <input type="hidden" name="existingPhotoUrls" value={photoUrl} />
+                        <img src={photoUrl} alt={`Mevcut ürün fotoğrafı ${index + 1}`} />
+                        <button
+                          type="button"
+                          className="photo-tile__delete"
+                          aria-label={`Mevcut ürün fotoğrafı ${index + 1} sil`}
+                          onClick={() => removeExistingPhoto(photoUrl)}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    ))
+                  : null}
+                {photoFields.map((field, index) => (
+                  <label key={field.id} className={`photo-tile${field.previewUrl ? ' photo-tile--filled' : ''}`}>
+                    <input type="file" accept="image/*" name="photos" onChange={(event) => handlePhotoChange(field.id, event)} />
+                    {field.previewUrl ? (
+                      <>
+                        <img src={field.previewUrl} alt={field.fileName || `Yeni ürün fotoğrafı ${index + 1}`} />
+                        <button
+                          type="button"
+                          className="photo-tile__delete"
+                          aria-label={`Yeni ürün fotoğrafı ${index + 1} sil`}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            removePhotoField(field.id);
+                          }}
+                        >
+                          🗑
+                        </button>
+                      </>
+                    ) : (
+                      <span className="photo-tile__empty" aria-hidden="true">
+                        +
+                      </span>
+                    )}
+                    <span className="photo-tile__label">{field.fileName || `Fotoğraf ${existingPhotoUrls.length + index + 1}`}</span>
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  className="photo-tile photo-tile--add"
+                  onClick={addPhotoField}
+                  disabled={!canAddPhotoField}
+                  title={!canAddPhotoField ? 'En fazla 10 fotoğraf ekleyebilirsiniz.' : undefined}
+                >
+                  <span aria-hidden="true">+</span>
+                  <span>Fotoğraf ekle</span>
+                </button>
+              </div>
               <span className="hint">
-                {photoFields.length}/{MAX_PRODUCT_PHOTOS} fotoğraf alanı açık. Düzenleme sırasında yeni fotoğraf seçmezseniz mevcut fotoğraflar korunur.
+                {totalPhotoSlots}/{MAX_PRODUCT_PHOTOS} fotoğraf kutusu açık. Düzenleme sırasında yeni fotoğraf seçmezseniz kalan mevcut fotoğraflar korunur.
               </span>
             </div>
 
