@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { deleteDoc, deleteField, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Link } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
 import { db } from '../../lib/firebase.client';
@@ -66,19 +66,20 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
   }, [isMenuOpen]);
 
   const handleArchive = async () => {
+    const shouldArchive = product.isArchived !== true;
     setActionError(null);
 
     try {
       await updateDoc(doc(db, PRODUCTS_COLLECTION, product.productId), {
-        isArchived: true,
-        archivedAt: serverTimestamp(),
+        isArchived: shouldArchive,
+        archivedAt: shouldArchive ? serverTimestamp() : deleteField(),
         updatedAt: serverTimestamp(),
       });
       setIsMenuOpen(false);
       onProductArchived?.(product.productId);
     } catch (error) {
-      console.error('Product could not be archived.', error);
-      setActionError('Ürün arşivlenemedi. Admin yetkinizi kontrol edin.');
+      console.error(`Product could not be ${shouldArchive ? 'archived' : 'restored'}.`, error);
+      setActionError(`Ürün ${shouldArchive ? 'arşivlenemedi' : 'koleksiyonlara geri alınamadı'}. Admin yetkinizi kontrol edin.`);
     }
   };
 
@@ -135,7 +136,7 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
                 Delete
               </button>
               <button type="button" className="product-card__options-item" role="menuitem" onClick={handleArchive}>
-                {product.isArchived ? 'Rearchive' : 'Archive'}
+                {product.isArchived ? 'Restore to Collections' : 'Archive'}
               </button>
             </div>
           ) : null}
