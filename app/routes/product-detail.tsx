@@ -219,7 +219,7 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
             <label className="product-detail__select-label" key={group.id}>
               <span>{group.name}</span>
               <select value={selectedIds[groupIndex] ?? ''} onChange={(event) => onSelectVariation(groupIndex, event.target.value)}>
-                <option value="">Select {group.name}</option>
+                <option value="">{group.name}</option>
                 {group.options.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
