@@ -75,22 +75,93 @@
   font-weight: 600;
 }
 
-.photo-field {
-  border: 1px solid #e5e5e5;
-  border-radius: 12px;
-  padding: 0.75rem;
+.photo-tile-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
-.add-photo-button {
-  align-self: flex-start;
-  border: 1px solid #222;
-  border-radius: 999px;
-  padding: 0.65rem 1rem;
-  background: #fff;
+.photo-tile {
+  position: relative;
+  width: 118px;
+  height: 118px;
+  border: 1px dashed #b7b7b7;
+  border-radius: 14px;
+  background: #fafafa;
+  color: #555;
+  display: grid !important;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  font-weight: 600;
+  text-align: center;
+}
+
+.photo-tile input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
   cursor: pointer;
 }
 
-.add-photo-button:disabled {
+.photo-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-tile--filled {
+  border-style: solid;
+  border-color: #e5e7eb;
+  background: #fff;
+}
+
+.photo-tile__empty,
+.photo-tile--add > span:first-child {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.photo-tile__label {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  left: 0.35rem;
+  border-radius: 999px;
+  background: rgb(17 24 39 / 78%);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-tile__delete {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(17 24 39 / 62%);
+  color: #fff;
+  font-size: 1.75rem;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 160ms ease;
+}
+
+.photo-tile--filled:hover .photo-tile__delete,
+.photo-tile--filled:focus-within .photo-tile__delete,
+.photo-tile__delete:focus-visible {
+  opacity: 1;
+}
+
+.photo-tile--add {
+  gap: 0.25rem;
+  border: 1px dashed #222;
+}
+
+.photo-tile--add:disabled {
   border-color: #b7b7b7;
   color: #777;
   cursor: not-allowed;
@@ -225,19 +296,4 @@ button.danger {
 
 .success-text {
   color: #047857;
-}
-
-.existing-photos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-top: 0.35rem;
-}
-
-.existing-photos img {
-  width: 72px;
-  height: 72px;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
-  object-fit: cover;
 }

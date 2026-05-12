@@ -134,11 +134,9 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
               <button type="button" className="product-card__options-item" role="menuitem" onClick={handleDelete}>
                 Delete
               </button>
-              {!product.isArchived ? (
-                <button type="button" className="product-card__options-item" role="menuitem" onClick={handleArchive}>
-                  Archive
-                </button>
-              ) : null}
+              <button type="button" className="product-card__options-item" role="menuitem" onClick={handleArchive}>
+                {product.isArchived ? 'Rearchive' : 'Archive'}
+              </button>
             </div>
           ) : null}
         </div>
