@@ -248,10 +248,10 @@ export function NavBar() {
       setDraftSocialLinkValues(nextSocialLinkValues);
       setContactLinkValues(nextContactLinkValues);
       setDraftContactLinkValues(nextContactLinkValues);
-      setSocialEditorMessage("Sosyal medya ve iletişim bilgileri kaydedildi.");
+      setSocialEditorMessage("Social media and contact info saved.");
     } catch (error) {
       console.error("Navbar social and contact links could not be saved.", error);
-      setSocialEditorMessage("Linkler ve iletişim bilgileri kaydedilemedi. Admin yetkinizi kontrol edin.");
+      setSocialEditorMessage("Links and contact info could not be saved. Please check your admin access.");
     } finally {
       setIsSavingSocialLinks(false);
     }
@@ -263,7 +263,7 @@ export function NavBar() {
         <div className="navbar__contact-content">
           <div className="navbar__contact-info">
             <a className="navbar__email-link" href={createMailToHref(contactLinkValues.email)}>
-              E-mail us
+              Email us
             </a>
             <span className="navbar__divider">|</span>
             <span>{contactLinkValues.phone}</span>
@@ -321,11 +321,11 @@ export function NavBar() {
                     ))}
 
                     <label className="navbar__contact-input-row">
-                      <span>E-mail gönderim adresi</span>
+                      <span>Email address for messages</span>
                       <input
                         type="email"
                         value={draftContactLinkValues.email}
-                        aria-label="E-mail gönderim adresi"
+                        aria-label="Email address for messages"
                         placeholder="info@example.com"
                         onChange={(event) => {
                           setDraftContactLinkValues((currentValues) => ({
@@ -336,11 +336,11 @@ export function NavBar() {
                       />
                     </label>
                     <label className="navbar__contact-input-row">
-                      <span>Telefon numarası</span>
+                      <span>Phone number</span>
                       <input
                         type="tel"
                         value={draftContactLinkValues.phone}
-                        aria-label="E-mail us yanındaki telefon numarası"
+                        aria-label="Phone number shown next to Email us"
                         placeholder="(515) 832-8733"
                         onChange={(event) => {
                           setDraftContactLinkValues((currentValues) => ({

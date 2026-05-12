@@ -39,7 +39,7 @@ function toErrorMessage(error: unknown): string {
     return String(error.message);
   }
 
-  return "Beklenmeyen bir kimlik doğrulama hatası oluştu.";
+  return "We could not sign you in. Please try again.";
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

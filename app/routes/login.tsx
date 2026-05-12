@@ -93,7 +93,7 @@ export default function LoginPage() {
         </button>
 
         <p className="auth-footer">
-          Hesabın yok mu? <Link to="/register">Register</Link>
+          Need an account? <Link to="/register">Register</Link>
         </p>
       </section>
     </main>

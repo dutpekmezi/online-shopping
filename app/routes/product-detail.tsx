@@ -107,12 +107,12 @@ function AdminProductOptions({ product, onArchived, onDeleted }: AdminProductOpt
       onArchived(shouldArchive);
     } catch (error) {
       console.error(`Product could not be ${shouldArchive ? 'archived' : 'restored'}.`, error);
-      setActionError(`Ürün ${shouldArchive ? 'arşivlenemedi' : 'koleksiyonlara geri alınamadı'}. Admin yetkinizi kontrol edin.`);
+      setActionError(`Product could not be ${shouldArchive ? 'archived' : 'restored to Collections'}. Please check your admin access.`);
     }
   };
 
   const handleDelete = async () => {
-    const shouldDelete = window.confirm(`"${product.title}" ürününü kalıcı olarak silmek istediğinizden emin misiniz?`);
+    const shouldDelete = window.confirm(`Are you sure you want to permanently delete "${product.title}"?`);
 
     if (!shouldDelete) {
       return;
@@ -126,7 +126,7 @@ function AdminProductOptions({ product, onArchived, onDeleted }: AdminProductOpt
       onDeleted();
     } catch (error) {
       console.error('Product could not be deleted.', error);
-      setActionError('Ürün silinemedi. Admin yetkinizi kontrol edin.');
+      setActionError('Product could not be deleted. Please check your admin access.');
     }
   };
 
@@ -135,7 +135,7 @@ function AdminProductOptions({ product, onArchived, onDeleted }: AdminProductOpt
       <button
         type="button"
         className="product-detail__admin-options-button"
-        aria-label={`${product.title} seçenekleri`}
+        aria-label={`${product.title} options`}
         aria-expanded={isMenuOpen}
         onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
       >
@@ -145,7 +145,7 @@ function AdminProductOptions({ product, onArchived, onDeleted }: AdminProductOpt
       </button>
 
       {isMenuOpen ? (
-        <div className="product-detail__admin-options-menu" role="menu" aria-label={`${product.title} seçenekleri`}>
+        <div className="product-detail__admin-options-menu" role="menu" aria-label={`${product.title} options`}>
           <Link className="product-detail__admin-options-item" to={`/add-product?productId=${encodeURIComponent(product.productId)}`} role="menuitem">
             Edit
           </Link>
@@ -204,7 +204,7 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
       quantity,
       optionSummary: optionSummary || undefined,
     });
-    setCartMessage('Ürün sepetinize eklendi.');
+    setCartMessage('Item added to your cart.');
   };
 
   return (

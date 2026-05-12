@@ -147,7 +147,7 @@ export async function action({ request }: Route.ActionArgs) {
   const authToken = String(formData.get('authToken') ?? '').trim();
 
   if (!authToken) {
-    return { message: 'Admin oturumu doğrulanamadı.', success: false } satisfies ActionData;
+    return { message: 'We could not confirm the admin session.', success: false } satisfies ActionData;
   }
 
   const { getAdminAuth, getAdminFirestore, FieldValue } = await import('../lib/firebase-admin.server');
@@ -155,7 +155,7 @@ export async function action({ request }: Route.ActionArgs) {
   const decodedToken = await adminAuth.verifyIdToken(authToken).catch(() => null);
 
   if (!decodedToken || decodedToken.admin !== true) {
-    return { message: 'Bu işlem için admin yetkisi gerekli.', success: false } satisfies ActionData;
+    return { message: 'Admin access is required for this action.', success: false } satisfies ActionData;
   }
 
   try {
@@ -172,7 +172,7 @@ export async function action({ request }: Route.ActionArgs) {
     const availableProductCategories = categoryCount > 0 ? await fetchAvailableProductCategories(adminDb) : new Set<string>();
 
     if (categoryCount > 0 && availableProductCategories.size === 0) {
-      return { message: 'Collections içinde kayıtlı bir kategori bulunamadı. Önce ürünlere kategori ekleyin.', success: false } satisfies ActionData;
+      return { message: 'No categories were found in Collections. Add a category to a product first.', success: false } satisfies ActionData;
     }
 
     const categories = await Promise.all(
@@ -220,10 +220,10 @@ export async function action({ request }: Route.ActionArgs) {
     console.error('Home content could not be saved.', error);
 
     if (error instanceof Error && error.message.startsWith('Invalid home category:')) {
-      return { message: 'Kategori adları sadece Collections içindeki kategorilerden seçilebilir.', success: false } satisfies ActionData;
+      return { message: 'Category names can only be chosen from Collections categories.', success: false } satisfies ActionData;
     }
 
-    return { message: 'Home içeriği kaydedilemedi. Lütfen tekrar deneyin.', success: false } satisfies ActionData;
+    return { message: 'Home content could not be saved. Please try again.', success: false } satisfies ActionData;
   }
 
   return redirect('/home?refreshHome=1');
@@ -271,7 +271,7 @@ function EditHomeContent() {
 
         if (isSubscribed) {
           setCollectionCategories([]);
-          setCollectionCategoriesError('Collections kategorileri yüklenemedi. Lütfen ürün okuma izinlerini kontrol edin.');
+          setCollectionCategoriesError('Collections categories could not be loaded. Please check product read access.');
         }
       })
       .finally(() => {
@@ -325,7 +325,7 @@ function EditHomeContent() {
     const nextTitle = collectionCategories[0];
 
     if (!nextTitle) {
-      setSubmitError('Yeni kart eklemek için önce Collections içinde en az bir kategori olmalı.');
+      setSubmitError('Add at least one category in Collections before adding a new card.');
       return;
     }
 
@@ -350,19 +350,19 @@ function EditHomeContent() {
     setSubmitError(null);
 
     if (!user) {
-      setSubmitError('Kaydetmek için admin olarak giriş yapmalısınız.');
+      setSubmitError('Please sign in as an admin to save.');
       return;
     }
 
     if (homeContent.categories.length > 0 && collectionCategories.length === 0) {
-      setSubmitError('Kategori kartı kaydetmek için Collections içinde kayıtlı en az bir kategori olmalı.');
+      setSubmitError('At least one Collections category is needed to save category cards.');
       return;
     }
 
     const invalidCategory = homeContent.categories.find((category) => !collectionCategories.includes(category.title));
 
     if (invalidCategory) {
-      setSubmitError(`Kategori kartları sadece Collections kategorilerinden seçilebilir: ${invalidCategory.title}`);
+      setSubmitError(`Category cards can only use Collections categories: ${invalidCategory.title}`);
       return;
     }
 
@@ -370,14 +370,14 @@ function EditHomeContent() {
       const tokenResult = await user.getIdTokenResult(true);
 
       if (tokenResult.claims.admin !== true) {
-        setSubmitError('Admin yetkisi yenilenemedi. Lütfen çıkış yapıp tekrar giriş yapın.');
+        setSubmitError('Admin access could not be refreshed. Please sign out and sign back in.');
         return;
       }
 
       const authToken = tokenResult.token || (await user.getIdToken(true));
 
       if (!authToken) {
-        setSubmitError('Admin oturumu doğrulanamadı. Lütfen tekrar giriş yapın.');
+        setSubmitError('We could not confirm the admin session. Please sign in again.');
         return;
       }
 
@@ -406,7 +406,7 @@ function EditHomeContent() {
       submit(formData, { method: 'post', encType: 'multipart/form-data' });
     } catch (error) {
       const detail = error instanceof Error ? ` (${error.message})` : '';
-      setSubmitError(`Admin oturumu doğrulanamadı veya resimler optimize edilemedi.${detail}`);
+      setSubmitError(`We could not confirm the admin session, or images could not be optimized.${detail}`);
       setIsOptimizingImages(false);
     }
   };
@@ -416,14 +416,14 @@ function EditHomeContent() {
       <NavBar />
       <main className="edit-home-page">
         <h1>Edit Home</h1>
-        <p>Home resimlerini URL yazmadan seçin. Kaydedilen yeni resimler Firebase Storage'a yüklenir ve eski kullanılmayan home resimleri silinir.</p>
+        <p>Choose home images without typing URLs. New images are uploaded to Firebase Storage, and old unused home images are removed.</p>
 
         <Form className="edit-home-form" method="post" encType="multipart/form-data" onSubmit={handleSubmit}>
           <input type="hidden" name="authToken" value="" readOnly />
-          {isLoading ? <p className="edit-home-message">Home içeriği yükleniyor…</p> : null}
-          {error ? <p className="edit-home-message edit-home-message--error">Home içeriği yüklenemedi; yedek içerik gösteriliyor.</p> : null}
+          {isLoading ? <p className="edit-home-message">Loading home content…</p> : null}
+          {error ? <p className="edit-home-message edit-home-message--error">Home content could not be loaded. Showing backup content.</p> : null}
           {submitError ? <p className="edit-home-message edit-home-message--error">{submitError}</p> : null}
-          {isOptimizingImages ? <p className="edit-home-message">Resimler optimize ediliyor…</p> : null}
+          {isOptimizingImages ? <p className="edit-home-message">Optimizing images…</p> : null}
           {actionData?.message ? (
             <p className={`edit-home-message ${actionData.success ? 'edit-home-message--success' : 'edit-home-message--error'}`}>
               {actionData.message}
@@ -431,15 +431,15 @@ function EditHomeContent() {
           ) : null}
 
           <section className="edit-home-section">
-            <h2>Büyük kaydırmalı alan</h2>
+            <h2>Main hero area</h2>
             <input type="hidden" name="heroImageUrl" value={homeContent.heroImageUrl} readOnly />
             <label>
-              Resim seç
+              Choose image
               <input type="file" accept="image/*" name="heroImageFile" onChange={handleHeroImageChange} />
             </label>
-            <img className="edit-home-image-preview edit-home-image-preview--hero" src={homeImagePreviews.heroImageUrl ?? resolveHomeImageUrl(homeContent.heroImageUrl)} alt="Büyük alan önizleme" />
+            <img className="edit-home-image-preview edit-home-image-preview--hero" src={homeImagePreviews.heroImageUrl ?? resolveHomeImageUrl(homeContent.heroImageUrl)} alt="Main area preview" />
             <label>
-              Üst yazı
+              Small heading
               <textarea
                 name="heroEyebrow"
                 rows={2}
@@ -448,7 +448,7 @@ function EditHomeContent() {
               />
             </label>
             <label>
-              Başlık
+              Title
               <textarea
                 name="heroTitle"
                 rows={2}
@@ -457,7 +457,7 @@ function EditHomeContent() {
               />
             </label>
             <label>
-              Açıklama
+              Description
               <textarea
                 name="heroDescription"
                 rows={4}
@@ -470,8 +470,8 @@ function EditHomeContent() {
           <section className="edit-home-section">
             <div className="edit-home-section-heading">
               <div>
-                <h2>Kategoriler</h2>
-                <p className="edit-home-help-text">Kategori adları sadece Collections sayfasındaki ürün kategorilerinden seçilebilir; istemediğiniz kartları silebilirsiniz.</p>
+                <h2>Categories</h2>
+                <p className="edit-home-help-text">Category names can only be chosen from product categories on the Collections page. You can delete cards you do not want.</p>
               </div>
               <button
                 className="edit-home-secondary-button"
@@ -479,34 +479,34 @@ function EditHomeContent() {
                 onClick={addCategoryCard}
                 disabled={isLoadingCollectionCategories || collectionCategories.length === 0}
               >
-                Yeni kategori kartı ekle
+                Add a category card
               </button>
             </div>
             <input type="hidden" name="categoryCount" value={homeContent.categories.length} readOnly />
-            {isLoadingCollectionCategories ? <p className="edit-home-message">Collections kategorileri yükleniyor…</p> : null}
+            {isLoadingCollectionCategories ? <p className="edit-home-message">Loading Collections categories…</p> : null}
             {collectionCategoriesError ? <p className="edit-home-message edit-home-message--error">{collectionCategoriesError}</p> : null}
             {!isLoadingCollectionCategories && collectionCategories.length === 0 ? (
-              <p className="edit-home-message edit-home-message--error">Collections içinde seçilebilir kategori bulunamadı.</p>
+              <p className="edit-home-message edit-home-message--error">No categories are available in Collections.</p>
             ) : null}
             {homeContent.categories.length === 0 ? (
-              <p className="edit-home-message">Home sayfasında gösterilecek kategori kartı yok. Yeni kart eklemek için yukarıdaki butonu kullanın.</p>
+              <p className="edit-home-message">There are no category cards for the Home page. Use the button above to add one.</p>
             ) : null}
             {homeContent.categories.map((category, index) => (
               <div className="edit-home-category" key={`${category.id}-${index}`}>
                 <div className="edit-home-category-heading">
-                  <h3>Kategori kartı {index + 1}</h3>
+                  <h3>Category card {index + 1}</h3>
                   <button
                     className="edit-home-delete-button"
                     type="button"
                     onClick={() => removeCategoryCard(index)}
                     disabled={isOptimizingImages}
-                    aria-label={`${category.title} kategori kartını sil`}
+                    aria-label={`${category.title} category card`}
                   >
-                    Sil
+                    Delete
                   </button>
                 </div>
                 <label>
-                  Kategori adı {index + 1}
+                  Category name {index + 1}
                   <select
                     name={`categoryTitle-${index}`}
                     value={category.title}
@@ -519,7 +519,7 @@ function EditHomeContent() {
                   >
                     {!collectionCategories.includes(category.title) ? (
                       <option value={category.title} disabled>
-                        Seçilemez: {category.title}
+                        Not available: {category.title}
                       </option>
                     ) : null}
                     {collectionCategories.map((collectionCategory) => (
@@ -531,17 +531,17 @@ function EditHomeContent() {
                 </label>
                 <input type="hidden" name={`categoryImageUrl-${index}`} value={category.imageUrl} readOnly />
                 <label>
-                  Kategori resmi seç {index + 1}
+                  Choose category image {index + 1}
                   <input type="file" accept="image/*" name={`categoryImageFile-${index}`} onChange={(event) => handleCategoryImageChange(event, index)} />
                 </label>
-                <img className="edit-home-image-preview" src={homeImagePreviews.categories[index] ?? resolveHomeImageUrl(category.imageUrl)} alt={`${category.title} önizleme`} />
+                <img className="edit-home-image-preview" src={homeImagePreviews.categories[index] ?? resolveHomeImageUrl(category.imageUrl)} alt={`${category.title} preview`} />
               </div>
             ))}
           </section>
 
           <div className="edit-home-actions">
             <button className="edit-home-save" type="submit" disabled={isOptimizingImages}>
-              {isOptimizingImages ? 'Optimize ediliyor…' : 'Kaydet'}
+              {isOptimizingImages ? 'Optimizing…' : 'Save'}
             </button>
           </div>
         </Form>

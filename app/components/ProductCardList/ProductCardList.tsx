@@ -32,7 +32,7 @@ type ProductCardListProps = {
 export function ProductCardList({ archived = false }: ProductCardListProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Tümü');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortOrder, setSortOrder] = useState('newest');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -57,10 +57,10 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
 
           setErrorMessage(
             errorCode === 'permission-denied'
-              ? 'Firestore ürün okuma izni kapalı. app/firestore.rules dosyasındaki products okuma kuralını Firebase Console veya Firebase CLI ile yayınlayın.'
+              ? 'Product reading is blocked in Firestore. Publish the products read rule in app/firestore.rules using Firebase Console or Firebase CLI.'
               : error instanceof Error
                 ? error.message
-                : 'Ürünler yüklenirken bir hata oluştu.',
+                : 'We could not load the products.',
           );
         }
       } finally {
@@ -78,14 +78,14 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
   }, [archived]);
 
   const allCategories = useMemo(
-    () => ['Tümü', ...new Set(products.map((product) => product.category).filter(Boolean))],
+    () => ['All', ...new Set(products.map((product) => product.category).filter(Boolean))],
     [products],
   );
 
   const filteredProducts = useMemo(() => {
     const searchValue = query.trim().toLowerCase();
     const nextProducts = products.filter((product) => {
-      const matchesCategory = selectedCategory === 'Tümü' || product.category === selectedCategory;
+      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
       const normalizedText = `${product.title} ${product.description} ${product.category}`.toLowerCase();
       const matchesSearch = !searchValue || normalizedText.includes(searchValue);
 
@@ -107,11 +107,11 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
     <section className="product-card-list" aria-label="Product list">
       <div className="product-card-list__toolbar">
         <div className="product-card-list__filters">
-          <span className="product-card-list__label">Filtre:</span>
+          <span className="product-card-list__label">Filter:</span>
 
           <div className="product-card-list__field">
             <label htmlFor="product-category" className="product-card-list__label">
-              Stok durumu
+              Category
             </label>
             <select
               id="product-category"
@@ -129,14 +129,14 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
 
           <div className="product-card-list__field">
             <label htmlFor="product-search" className="product-card-list__label">
-              Fiyat
+              Search
             </label>
             <input
               id="product-search"
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ürün ara"
+              placeholder="Search items"
               className="product-card-list__search"
             />
           </div>
@@ -144,22 +144,22 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
 
         <div className="product-card-list__sort">
           <label htmlFor="product-sort" className="product-card-list__sort-label">
-            Sıralama ölçütü:
+            Sort by:
           </label>
           <select id="product-sort" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} className="product-card-list__select">
-            <option value="newest">En yeni</option>
-            <option value="price-low">Fiyat, düşükten yükseğe</option>
-            <option value="price-high">Fiyat, yüksekten düşüğe</option>
+            <option value="newest">Newest</option>
+            <option value="price-low">Price, low to high</option>
+            <option value="price-high">Price, high to low</option>
           </select>
-          <span className="product-card-list__count">{filteredProducts.length} ürün</span>
+          <span className="product-card-list__count">{filteredProducts.length} {filteredProducts.length === 1 ? 'item' : 'items'}</span>
         </div>
       </div>
 
-      {isLoading && <p className="product-card-list__status">Ürünler yükleniyor...</p>}
+      {isLoading && <p className="product-card-list__status">Loading items...</p>}
       {errorMessage && <p className="product-card-list__status product-card-list__status--error">{errorMessage}</p>}
 
       {!isLoading && !errorMessage && filteredProducts.length === 0 && (
-        <p className="product-card-list__status">Gösterilecek ürün bulunamadı.</p>
+        <p className="product-card-list__status">No items found.</p>
       )}
 
       {!isLoading && !errorMessage && filteredProducts.length > 0 && (

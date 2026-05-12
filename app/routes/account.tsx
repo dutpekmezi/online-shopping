@@ -18,10 +18,10 @@ export default function AccountPage() {
     <AuthGuard>
       <NavBar />
       <main className="panel-page">
-        <h1>Hesabım</h1>
-        <p>Giriş yapan kullanıcı: {user?.email}</p>
-        <p>Rol: {isAdmin ? "Admin" : "User"}</p>
-        {isAdmin ? <Link to="/admin">Admin paneline git</Link> : null}
+        <h1>My Account</h1>
+        <p>Signed in as: {user?.email}</p>
+        <p>Role: {isAdmin ? "Admin" : "User"}</p>
+        {isAdmin ? <Link to="/admin">Go to admin panel</Link> : null}
       </main>
     </AuthGuard>
   );

@@ -33,7 +33,7 @@ export default function RegisterPage() {
             setLocalError(null);
 
             if (password !== confirmPassword) {
-              setLocalError("Şifreler aynı olmalıdır.");
+              setLocalError("Passwords must match.");
               return;
             }
 
@@ -88,7 +88,7 @@ export default function RegisterPage() {
         </form>
 
         <p className="auth-footer">
-          Hesabın var mı? <Link to="/login">Sign in</Link>
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
       </section>
     </main>

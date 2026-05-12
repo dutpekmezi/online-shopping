@@ -15,7 +15,7 @@ export default function AdminPage() {
       <NavBar />
       <main className="panel-page">
         <h1>Admin Panel</h1>
-        <p>Bu sayfa sadece custom claim (admin=true) alan kullanıcılar içindir.</p>
+        <p>This page is only for users with the admin=true custom claim.</p>
       </main>
     </AuthGuard>
   );
