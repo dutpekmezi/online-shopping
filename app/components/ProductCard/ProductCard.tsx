@@ -1,5 +1,9 @@
+import { useEffect, useRef, useState } from 'react';
+import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Link } from 'react-router';
-import type { Product } from '../../lib/products';
+import { useAuth } from '../../hooks/useAuth';
+import { db } from '../../lib/firebase.client';
+import { PRODUCTS_COLLECTION, type Product } from '../../lib/products';
 import style from './ProductCard.css?url';
 
 export function links() {
@@ -8,9 +12,68 @@ export function links() {
 
 type ProductCardProps = {
   product: Product;
+  onProductArchived?: (productId: string) => void;
+  onProductDeleted?: (productId: string) => void;
 };
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, onProductArchived, onProductDeleted }: ProductCardProps) {
+  const { isAdmin } = useAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isMenuOpen]);
+
+  const handleArchive = async () => {
+    setActionError(null);
+
+    try {
+      await updateDoc(doc(db, PRODUCTS_COLLECTION, product.productId), {
+        isArchived: true,
+        archivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setIsMenuOpen(false);
+      onProductArchived?.(product.productId);
+    } catch (error) {
+      console.error('Product could not be archived.', error);
+      setActionError('Ürün arşivlenemedi. Admin yetkinizi kontrol edin.');
+    }
+  };
+
+  const handleDelete = async () => {
+    const shouldDelete = window.confirm(`"${product.title}" ürününü kalıcı olarak silmek istediğinizden emin misiniz?`);
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setActionError(null);
+
+    try {
+      await deleteDoc(doc(db, PRODUCTS_COLLECTION, product.productId));
+      setIsMenuOpen(false);
+      onProductDeleted?.(product.productId);
+    } catch (error) {
+      console.error('Product could not be deleted.', error);
+      setActionError('Ürün silinemedi. Admin yetkinizi kontrol edin.');
+    }
+  };
+
   return (
     <article className="product-card">
       <Link className="product-card__link" to={`/products/${product.productId}`} aria-label={`View details for ${product.title}`}>
@@ -21,6 +84,40 @@ export function ProductCard({ product }: ProductCardProps) {
           <p className="product-card__description">{product.description}</p>
         </div>
       </Link>
+
+      {isAdmin ? (
+        <div className="product-card__options" ref={menuRef}>
+          <button
+            type="button"
+            className="product-card__options-button"
+            aria-label={`${product.title} seçenekleri`}
+            aria-expanded={isMenuOpen}
+            onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
+          >
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+          </button>
+
+          {isMenuOpen ? (
+            <div className="product-card__options-menu" role="menu" aria-label={`${product.title} seçenekleri`}>
+              <Link className="product-card__options-item" to={`/add-product?productId=${encodeURIComponent(product.productId)}`} role="menuitem">
+                Edit
+              </Link>
+              <button type="button" className="product-card__options-item" role="menuitem" onClick={handleDelete}>
+                Delete
+              </button>
+              {!product.isArchived ? (
+                <button type="button" className="product-card__options-item" role="menuitem" onClick={handleArchive}>
+                  Archive
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {actionError ? <p className="product-card__action-error">{actionError}</p> : null}
     </article>
   );
 }

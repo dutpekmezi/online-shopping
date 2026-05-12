@@ -47,6 +47,9 @@ export function AuthStatus() {
               </Link>
               {isAdmin ? (
                 <>
+                  <Link to="/archive" className="navbar__profile-item" role="menuitem" onClick={() => setIsOpen(false)}>
+                    Archive
+                  </Link>
                   <Link to="/add-product" className="navbar__profile-item" role="menuitem" onClick={() => setIsOpen(false)}>
                     Add Product
                   </Link>

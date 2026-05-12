@@ -25,6 +25,8 @@ export type Product = {
   returnsInfo?: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  isArchived?: boolean;
+  archivedAt?: Timestamp;
 };
 
 export function resolveProductImageUrl(imageUrl: string) {
@@ -90,6 +92,8 @@ function mapProductDocument(docSnapshot: { id: string; data: () => Record<string
     returnsInfo: toOptionalString(data.returnsInfo),
     createdAt: toOptionalTimestamp(data.createdAt),
     updatedAt: toOptionalTimestamp(data.updatedAt),
+    isArchived: data.isArchived === true,
+    archivedAt: toOptionalTimestamp(data.archivedAt),
   } satisfies Product;
 }
 
@@ -102,11 +106,16 @@ function sortByCreatedAtDesc(products: Product[]) {
   });
 }
 
-export async function fetchProducts(): Promise<Product[]> {
+export async function fetchProducts(options: { archived?: boolean } = {}): Promise<Product[]> {
   const snapshot = await getDocs(collection(db, PRODUCTS_COLLECTION));
   const products = snapshot.docs.map(mapProductDocument);
+  const shouldShowArchived = options.archived === true;
 
-  return sortByCreatedAtDesc(products);
+  return sortByCreatedAtDesc(products.filter((product) => (product.isArchived === true) === shouldShowArchived));
+}
+
+export async function fetchArchivedProducts(): Promise<Product[]> {
+  return fetchProducts({ archived: true });
 }
 
 export async function fetchProductById(productId: string): Promise<Product | null> {
