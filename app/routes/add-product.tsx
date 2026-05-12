@@ -69,6 +69,7 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
   const authToken = String(formData.get('authToken') ?? '').trim();
   const editProductId = String(formData.get('editProductId') ?? '').trim();
+  const duplicateSourceProductId = String(formData.get('duplicateSourceProductId') ?? '').trim();
   const title = String(formData.get('title') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
   const basePrice = String(formData.get('basePrice') ?? '').trim();
@@ -119,16 +120,27 @@ export async function action({ request }: Route.ActionArgs) {
   const db = await getAdminFirestore();
   const nextProductId = editProductId || randomUUID();
   const isEditing = editProductId.length > 0;
+  const isDuplicating = !isEditing && duplicateSourceProductId.length > 0;
   const existingDocument = isEditing ? await db.collection('products').doc(editProductId).get() : null;
+  const duplicateSourceDocument = isDuplicating ? await db.collection('products').doc(duplicateSourceProductId).get() : null;
   const existingProduct = existingDocument?.exists ? existingDocument.data() : null;
+  const duplicateSourceProduct = duplicateSourceDocument?.exists ? duplicateSourceDocument.data() : null;
+  const sourceProduct = existingProduct ?? duplicateSourceProduct;
 
   if (isEditing && !existingProduct) {
     return { message: 'We could not find the product to edit.', success: false } satisfies ActionData;
   }
 
-  const resolvedTitle = title || (isEditing && typeof existingProduct?.title === 'string' ? existingProduct.title.trim() : '');
-  const resolvedDescription = description || (isEditing && typeof existingProduct?.description === 'string' ? existingProduct.description.trim() : '');
-  const resolvedCategory = submittedCategory || (isEditing && typeof existingProduct?.category === 'string' ? existingProduct.category.trim() : '');
+  if (isDuplicating && !duplicateSourceProduct) {
+    return { message: 'We could not find the product to duplicate.', success: false } satisfies ActionData;
+  }
+
+  const shouldUseSourceFallback = isEditing || isDuplicating;
+  const resolvedTitle = title || (shouldUseSourceFallback && typeof sourceProduct?.title === 'string' ? sourceProduct.title.trim() : '');
+  const resolvedDescription =
+    description || (shouldUseSourceFallback && typeof sourceProduct?.description === 'string' ? sourceProduct.description.trim() : '');
+  const resolvedCategory =
+    submittedCategory || (shouldUseSourceFallback && typeof sourceProduct?.category === 'string' ? sourceProduct.category.trim() : '');
 
   if (!resolvedTitle || !resolvedDescription || !resolvedCategory) {
     return { message: 'Title, description, and category are required.', success: false } satisfies ActionData;
@@ -164,12 +176,13 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
-  const existingImageUrls = Array.isArray(existingProduct?.imageUrls)
-    ? existingProduct.imageUrls.filter((imageUrl): imageUrl is string => typeof imageUrl === 'string')
+  const existingImageUrls = Array.isArray(sourceProduct?.imageUrls)
+    ? sourceProduct.imageUrls.filter((imageUrl): imageUrl is string => typeof imageUrl === 'string')
     : [];
-  const fallbackExistingImageUrl = typeof existingProduct?.imageUrl === 'string' ? existingProduct.imageUrl : '';
+  const fallbackExistingImageUrl = typeof sourceProduct?.imageUrl === 'string' ? sourceProduct.imageUrl : '';
   const defaultExistingImageUrls = existingImageUrls.length > 0 ? existingImageUrls : [fallbackExistingImageUrl].filter(Boolean);
-  const retainedExistingImageUrls = isEditing ? retainedImageUrls.filter((imageUrl) => defaultExistingImageUrls.includes(imageUrl)) : [];
+  const retainedExistingImageUrls =
+    isEditing || isDuplicating ? retainedImageUrls.filter((imageUrl) => defaultExistingImageUrls.includes(imageUrl)) : [];
   const imageUrls = [...retainedExistingImageUrls, ...uploadedImageUrls].slice(0, MAX_PRODUCT_PHOTOS);
 
   if (imageUrls.length === 0) {
@@ -192,8 +205,8 @@ export async function action({ request }: Route.ActionArgs) {
   await db.collection('products').doc(nextProductId).set(
     {
       ...draftProduct,
-      isArchived: existingProduct?.isArchived === true,
-      createdAt: existingProduct?.createdAt ?? FieldValue.serverTimestamp(),
+      isArchived: isEditing && existingProduct?.isArchived === true,
+      createdAt: isEditing ? existingProduct?.createdAt ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
@@ -202,7 +215,9 @@ export async function action({ request }: Route.ActionArgs) {
   return {
     message: editProductId
       ? `Product #${nextProductId} was updated and published.`
-      : `Product #${nextProductId} was published.`,
+      : isDuplicating
+        ? `Product #${nextProductId} was published as a copy.`
+        : `Product #${nextProductId} was published.`,
     success: true,
   } satisfies ActionData;
 }
@@ -217,7 +232,9 @@ function AddProductContent() {
   const actionData = useActionData<ActionData>();
   const [searchParams] = useSearchParams();
   const editProductId = searchParams.get('productId')?.trim() ?? '';
+  const duplicateProductId = searchParams.get('duplicateProductId')?.trim() ?? '';
   const isEditing = editProductId.length > 0;
+  const isDuplicating = !isEditing && duplicateProductId.length > 0;
   const submit = useSubmit();
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -323,7 +340,9 @@ function AddProductContent() {
     let isSubscribed = true;
 
     async function loadEditableProduct() {
-      if (!editProductId) {
+      const sourceProductId = editProductId || duplicateProductId;
+
+      if (!sourceProductId) {
         resetNewProductForm();
         return;
       }
@@ -332,14 +351,14 @@ function AddProductContent() {
       setProductError(null);
 
       try {
-        const editableProduct = await fetchProductById(editProductId);
+        const editableProduct = await fetchProductById(sourceProductId);
 
         if (!isSubscribed) {
           return;
         }
 
         if (!editableProduct) {
-          setProductError('We could not find the product to edit.');
+          setProductError(isDuplicating ? 'We could not find the product to duplicate.' : 'We could not find the product to edit.');
           return;
         }
 
@@ -369,8 +388,7 @@ function AddProductContent() {
     return () => {
       isSubscribed = false;
     };
-  }, [editProductId]);
-
+  }, [duplicateProductId, editProductId, isDuplicating]);
 
   const selectedGroup = useMemo(
     () => pricingState.variationGroups.find((group) => group.id === selectedGroupId),
@@ -585,7 +603,13 @@ function AddProductContent() {
       <main className="add-product-page">
         <section className="add-product-page__header">
           <p className="add-product-page__eyebrow">Admin Tools</p>
-          <h1>{isEditing ? 'Edit product with Etsy-style combination pricing' : 'Add product with Etsy-style combination pricing'}</h1>
+          <h1>
+            {isEditing
+              ? 'Edit product with Etsy-style combination pricing'
+              : isDuplicating
+                ? 'Duplicate product with Etsy-style combination pricing'
+                : 'Add product with Etsy-style combination pricing'}
+          </h1>
           <p>Pricing is resolved only by combination matrix lookup. Max 2 pricing dimensions are supported.</p>
         </section>
 
@@ -596,7 +620,8 @@ function AddProductContent() {
           {productLoading && <p className="hint">Loading product details...</p>}
           {productError && <p className="hint danger-text">{productError}</p>}
           <input type="hidden" name="authToken" value="" readOnly />
-          <input type="hidden" name="editProductId" value={editProductId} readOnly />
+          <input type="hidden" name="editProductId" value={isEditing ? editProductId : ''} readOnly />
+          <input type="hidden" name="duplicateSourceProductId" value={isDuplicating ? duplicateProductId : ''} readOnly />
 
           {validationErrors.length > 0 && (
             <div className="validation-errors">
@@ -894,6 +919,8 @@ function AddProductContent() {
                   </span>
                 ) : isEditing ? (
                   'Save and Publish'
+                ) : isDuplicating ? (
+                  'Publish as Copy'
                 ) : (
                   'Publish'
                 )}

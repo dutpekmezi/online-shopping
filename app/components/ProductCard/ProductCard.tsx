@@ -185,6 +185,13 @@ export function ProductCard({ product, onProductArchived, onProductDeleted }: Pr
               <Link className="product-card__options-item" to={`/add-product?productId=${encodeURIComponent(product.productId)}`} role="menuitem">
                 Edit
               </Link>
+              <Link
+                className="product-card__options-item"
+                to={`/add-product?duplicateProductId=${encodeURIComponent(product.productId)}`}
+                role="menuitem"
+              >
+                Duplicate
+              </Link>
               <button type="button" className="product-card__options-item" role="menuitem" onClick={handleDelete}>
                 Delete
               </button>

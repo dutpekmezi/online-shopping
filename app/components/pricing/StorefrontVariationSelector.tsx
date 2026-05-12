@@ -43,7 +43,7 @@ export function StorefrontVariationSelector({ basePrice, groups, combinations }:
         <label key={group.id}>
           {group.name}
           <select value={selectedIds[groupIndex] ?? ''} onChange={(event) => updateSelection(groupIndex, event.target.value)}>
-            <option value="">Select {group.name}</option>
+            <option value="">{group.name}</option>
             {group.options.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
