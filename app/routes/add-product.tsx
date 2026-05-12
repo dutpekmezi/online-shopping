@@ -229,13 +229,46 @@ function AddProductContent() {
   const [existingPhotoUrls, setExistingPhotoUrls] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [basePrice, setBasePrice] = useState('0');
-  const [photoFields, setPhotoFields] = useState<Array<{ id: string; fileName: string; previewUrl: string }>>([createEmptyPhotoField()]);
+  const [basePrice, setBasePrice] = useState('');
+  const [photoFields, setPhotoFields] = useState<Array<{ id: string; fileName: string; previewUrl: string }>>([]);
   const photoFieldsRef = useRef(photoFields);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPreparingPublish, setIsPreparingPublish] = useState(false);
+  const [pricingState, setPricingState] = useState<ProductPricingState>(initialPricingState);
+  const [variationNameInput, setVariationNameInput] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [optionLabelInput, setOptionLabelInput] = useState('');
+  const [optionIdInput, setOptionIdInput] = useState('');
+  const [optionSkuFragmentInput, setOptionSkuFragmentInput] = useState('');
+  const [optionStockInput, setOptionStockInput] = useState('0');
+
+  const resetNewProductForm = () => {
+    photoFieldsRef.current.forEach((field) => {
+      if (field.previewUrl) {
+        URL.revokeObjectURL(field.previewUrl);
+      }
+    });
+
+    setProductLoading(false);
+    setProductError(null);
+    setSubmitError(null);
+    setExistingPhotoUrls([]);
+    setTitle('');
+    setDescription('');
+    setBasePrice('');
+    setPhotoFields([]);
+    setSelectedCategory('');
+    setNewCategory('');
+    setPricingState(initialPricingState);
+    setVariationNameInput('');
+    setSelectedGroupId('');
+    setOptionLabelInput('');
+    setOptionIdInput('');
+    setOptionSkuFragmentInput('');
+    setOptionStockInput('0');
+  };
 
   useEffect(() => {
     photoFieldsRef.current = photoFields;
@@ -266,7 +299,6 @@ function AddProductContent() {
 
         if (isSubscribed) {
           setCategories(nextCategories);
-          setSelectedCategory((currentCategory) => currentCategory || nextCategories[0] || '');
         }
       } catch (error) {
         if (isSubscribed) {
@@ -292,9 +324,7 @@ function AddProductContent() {
 
     async function loadEditableProduct() {
       if (!editProductId) {
-        setProductError(null);
-        setExistingPhotoUrls([]);
-        setPhotoFields([createEmptyPhotoField()]);
+        resetNewProductForm();
         return;
       }
 
@@ -341,13 +371,6 @@ function AddProductContent() {
     };
   }, [editProductId]);
 
-  const [pricingState, setPricingState] = useState<ProductPricingState>(initialPricingState);
-  const [variationNameInput, setVariationNameInput] = useState('');
-  const [selectedGroupId, setSelectedGroupId] = useState('');
-  const [optionLabelInput, setOptionLabelInput] = useState('');
-  const [optionIdInput, setOptionIdInput] = useState('');
-  const [optionSkuFragmentInput, setOptionSkuFragmentInput] = useState('');
-  const [optionStockInput, setOptionStockInput] = useState('0');
 
   const selectedGroup = useMemo(
     () => pricingState.variationGroups.find((group) => group.id === selectedGroupId),
@@ -403,8 +426,7 @@ function AddProductContent() {
         URL.revokeObjectURL(removedField.previewUrl);
       }
 
-      const nextFields = currentFields.filter((field) => field.id !== fieldId);
-      return nextFields.length > 0 || existingPhotoUrls.length >= MAX_PRODUCT_PHOTOS ? nextFields : [createEmptyPhotoField()];
+      return currentFields.filter((field) => field.id !== fieldId);
     });
   };
 
