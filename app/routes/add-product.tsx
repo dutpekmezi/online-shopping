@@ -28,6 +28,7 @@ export function meta({}: Route.MetaArgs) {
 }
 
 const createId = () => Math.random().toString(36).slice(2, 10);
+const MAX_PRODUCT_PHOTOS = 10;
 
 function slugify(value: string): string {
   return value
@@ -75,7 +76,7 @@ export async function action({ request }: Route.ActionArgs) {
   const photos = formData
     .getAll('photos')
     .filter((photo): photo is File => photo instanceof File && photo.size > 0)
-    .slice(0, 10);
+    .slice(0, MAX_PRODUCT_PHOTOS);
 
   const category = newCategory || selectedCategory;
 
@@ -184,7 +185,7 @@ function AddProductContent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState('0');
-  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoFields, setPhotoFields] = useState([{ id: createId(), fileName: '' }]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -241,17 +242,22 @@ function AddProductContent() {
   const validationErrors = useMemo(() => validatePricingState(pricingState), [pricingState]);
   const canAddVariationGroup = variationNameInput.trim().length > 0 && pricingState.variationGroups.length < 2;
 
-  const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files) {
-      return;
-    }
+  const handlePhotoChange = (fieldId: string, event: ChangeEvent<HTMLInputElement>) => {
+    const selectedPhoto = event.target.files?.[0] ?? null;
 
-    const selectedPhotos = Array.from(event.target.files).slice(0, 10);
-    setPhotos(selectedPhotos);
+    setPhotoFields((currentFields) =>
+      currentFields.map((field) => (field.id === fieldId ? { ...field, fileName: selectedPhoto?.name ?? '' } : field)),
+    );
+  };
 
-    if (event.target.files.length > 10) {
-      window.alert('En fazla 10 fotoğraf ekleyebilirsiniz. İlk 10 fotoğraf kaydedilecek.');
-    }
+  const addPhotoField = () => {
+    setPhotoFields((currentFields) => {
+      if (currentFields.length >= MAX_PRODUCT_PHOTOS) {
+        return currentFields;
+      }
+
+      return [...currentFields, { id: createId(), fileName: '' }];
+    });
   };
 
   const refreshCombinations = (groups: VariationGroup[]) => {
@@ -435,19 +441,28 @@ function AddProductContent() {
               <span className="hint">{title.length}/140</span>
             </label>
 
-            <label>
-              Photos
-              <input type="file" accept="image/*" multiple name="photos" onChange={handlePhotoChange} />
-              <span className="hint">En fazla 10 fotoğraf ekleyebilirsiniz.</span>
-            </label>
-
-            {photos.length > 0 && (
-              <ul className="photo-list">
-                {photos.map((photo) => (
-                  <li key={photo.name}>{photo.name}</li>
-                ))}
-              </ul>
-            )}
+            <div className="photo-fields">
+              <span className="photo-fields__label">Photos</span>
+              {photoFields.map((field, index) => (
+                <label key={field.id} className="photo-field">
+                  Fotoğraf {index + 1}
+                  <input type="file" accept="image/*" name="photos" onChange={(event) => handlePhotoChange(field.id, event)} />
+                  {field.fileName && <span className="hint">Seçilen dosya: {field.fileName}</span>}
+                </label>
+              ))}
+              <button
+                type="button"
+                className="add-photo-button"
+                onClick={addPhotoField}
+                disabled={photoFields.length >= MAX_PRODUCT_PHOTOS}
+                title={photoFields.length >= MAX_PRODUCT_PHOTOS ? 'En fazla 10 fotoğraf ekleyebilirsiniz.' : undefined}
+              >
+                + Add photo
+              </button>
+              <span className="hint">
+                {photoFields.length}/{MAX_PRODUCT_PHOTOS} fotoğraf alanı açık. Her ürün Firestore'da en fazla 10 fotoğraf tutar.
+              </span>
+            </div>
 
             <label>
               Description
