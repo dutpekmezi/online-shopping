@@ -2,7 +2,6 @@ import Stripe from 'stripe';
 import { FieldValue, getAdminFirestore } from './firebase-admin.server';
 import { generateCombinationKey } from './pricing/utils';
 import type { ProductPricingState } from './pricing/types';
-import { ALLOWED_SHIPPING_COUNTRIES } from './shipping-countries';
 
 const CURRENCY = 'usd';
 const MAX_CHECKOUT_QUANTITY = 99;
@@ -280,10 +279,10 @@ function hasRequiredAddressFields(address: NormalizedAddress) {
 
 function getRequiredCustomerDetails(session: Stripe.Checkout.Session) {
   const customerDetails = session.customer_details;
-  const shippingDetails = session.shipping_details;
+  const shippingDetails = session.collected_information?.shipping_details;
   const customerName = customerDetails?.name?.trim() || shippingDetails?.name?.trim() || null;
   const customerEmail = getSessionEmail(session)?.trim() || null;
-  const customerPhone = customerDetails?.phone?.trim() || shippingDetails?.phone?.trim() || null;
+  const customerPhone = customerDetails?.phone?.trim() || null;
   const shippingAddress = normalizeAddress(shippingDetails?.address);
   const billingAddress = normalizeAddress(customerDetails?.address);
   const missingFields: string[] = [];
@@ -321,7 +320,7 @@ function getRequiredCustomerDetails(session: Stripe.Checkout.Session) {
     shippingDetails: shippingDetails
       ? {
           name: shippingDetails.name?.trim() || null,
-          phone: shippingDetails.phone?.trim() || null,
+          phone: customerPhone,
           address: shippingAddress,
         }
       : null,
@@ -359,7 +358,7 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
         enabled: true,
       },
       shipping_address_collection: {
-        allowed_countries: [...ALLOWED_SHIPPING_COUNTRIES],
+        allowed_countries: ['US', 'CA', 'TR', 'GB'],
       },
       custom_text: {
         shipping_address: {
