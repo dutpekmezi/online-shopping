@@ -290,3 +290,15 @@
     justify-self: stretch;
   }
 }
+
+.cart-page__error {
+  color: #9f1d1d;
+  font-weight: 700;
+  margin: 0;
+  max-width: 360px;
+}
+
+.cart-page__checkout:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}

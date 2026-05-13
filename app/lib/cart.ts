@@ -9,6 +9,7 @@ export type CartItem = {
   price: number;
   quantity: number;
   optionSummary?: string;
+  selectedOptionIds?: string[];
 };
 
 function isBrowser() {
@@ -28,12 +29,20 @@ function normalizeCartItem(value: unknown): CartItem | null {
   const price = typeof item.price === 'number' && Number.isFinite(item.price) ? item.price : 0;
   const quantity = typeof item.quantity === 'number' && Number.isFinite(item.quantity) ? Math.max(1, Math.floor(item.quantity)) : 1;
   const optionSummary = typeof item.optionSummary === 'string' && item.optionSummary.trim() ? item.optionSummary : undefined;
+  const selectedOptionIds = Array.isArray(item.selectedOptionIds)
+    ? item.selectedOptionIds.filter((optionId): optionId is string => typeof optionId === 'string' && optionId.trim().length > 0)
+    : id.startsWith(`${productId}:`)
+      ? id
+          .slice(`${productId}:`.length)
+          .split('|')
+          .filter((optionId) => optionId && optionId !== 'default')
+      : [];
 
   if (!id || !productId || !title) {
     return null;
   }
 
-  return { id, productId, title, imageUrl, price, quantity, optionSummary };
+  return { id, productId, title, imageUrl, price, quantity, optionSummary, selectedOptionIds };
 }
 
 export function readCartItems(): CartItem[] {
