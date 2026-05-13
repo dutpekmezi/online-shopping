@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
 import { getCartSubtotal, readCartItems, writeCartItems, type CartItem } from '../lib/cart';
+import { useAuth } from '../hooks/useAuth';
 import type { Route } from './+types/cart';
 import cartStylesHref from './cart.css?url';
 
@@ -29,6 +30,9 @@ function formatCurrency(value: number) {
 
 export default function Cart() {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     setItems(readCartItems());
@@ -47,6 +51,45 @@ export default function Cart() {
 
   const removeItem = (itemId: string) => {
     syncItems(items.filter((item) => item.id !== itemId));
+  };
+
+  const startCheckout = async () => {
+    setCheckoutError(null);
+
+    if (items.length === 0) {
+      setCheckoutError('Your cart is empty.');
+      return;
+    }
+
+    setIsCheckingOut(true);
+
+    try {
+      const authToken = user ? await user.getIdToken() : null;
+      const response = await fetch('/checkout/create-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          items: items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            selectedOptionIds: item.selectedOptionIds ?? [],
+          })),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || 'Stripe Checkout could not be started.');
+      }
+
+      window.location.assign(payload.url);
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'Stripe Checkout could not be started.');
+      setIsCheckingOut(false);
+    }
   };
 
   return (
@@ -127,8 +170,9 @@ export default function Cart() {
                 <span>{formatCurrency(subtotal)}</span>
               </p>
               <p className="cart-page__note">Taxes, discounts, and shipping are calculated at checkout.</p>
-              <button className="cart-page__checkout" type="button">
-                Check out
+              {checkoutError ? <p className="cart-page__error">{checkoutError}</p> : null}
+              <button className="cart-page__checkout" type="button" onClick={startCheckout} disabled={isCheckingOut}>
+                {isCheckingOut ? 'Redirecting to Stripe...' : 'Checkout'}
               </button>
             </section>
           </>

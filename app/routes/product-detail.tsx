@@ -203,6 +203,7 @@ function PurchasePanel({ product, selectedIds, onSelectVariation }: PurchasePane
       price: currentPrice,
       quantity,
       optionSummary: optionSummary || undefined,
+      selectedOptionIds: selectedIds.filter(Boolean),
     });
     setCartMessage('Item added to your cart.');
   };
