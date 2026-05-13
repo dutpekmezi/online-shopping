@@ -5,6 +5,7 @@ import type { ProductPricingState } from './pricing/types';
 
 const CURRENCY = 'usd';
 const MAX_CHECKOUT_QUANTITY = 99;
+const ALLOWED_SHIPPING_COUNTRIES = ['US', 'CA', 'GB', 'TR'] as const;
 
 type FirestoreTimestamp = { toMillis: () => number };
 
@@ -248,6 +249,86 @@ function getSessionEmail(session: Stripe.Checkout.Session) {
   return session.customer_details?.email ?? session.customer_email ?? null;
 }
 
+function getStripePaymentIntentId(session: Stripe.Checkout.Session) {
+  return typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null;
+}
+
+function getAddressLineValue(value: string | null | undefined) {
+  return value?.trim() || null;
+}
+
+function normalizeAddress(address: Stripe.Address | null | undefined) {
+  if (!address) {
+    return null;
+  }
+
+  return {
+    line1: getAddressLineValue(address.line1),
+    line2: getAddressLineValue(address.line2),
+    city: getAddressLineValue(address.city),
+    state: getAddressLineValue(address.state),
+    postalCode: getAddressLineValue(address.postal_code),
+    country: getAddressLineValue(address.country),
+  };
+}
+
+type NormalizedAddress = ReturnType<typeof normalizeAddress>;
+
+function hasRequiredAddressFields(address: NormalizedAddress) {
+  return Boolean(address?.line1 && address.city && address.postalCode && address.country);
+}
+
+function getRequiredCustomerDetails(session: Stripe.Checkout.Session) {
+  const customerDetails = session.customer_details;
+  const shippingDetails = session.shipping_details;
+  const customerName = customerDetails?.name?.trim() || shippingDetails?.name?.trim() || null;
+  const customerEmail = getSessionEmail(session)?.trim() || null;
+  const customerPhone = customerDetails?.phone?.trim() || shippingDetails?.phone?.trim() || null;
+  const shippingAddress = normalizeAddress(shippingDetails?.address);
+  const billingAddress = normalizeAddress(customerDetails?.address);
+  const missingFields: string[] = [];
+
+  if (!customerName) {
+    missingFields.push('customerName');
+  }
+
+  if (!customerEmail) {
+    missingFields.push('customerEmail');
+  }
+
+  if (!customerPhone) {
+    missingFields.push('customerPhone');
+  }
+
+  if (!shippingDetails?.name?.trim()) {
+    missingFields.push('shippingDetails.name');
+  }
+
+  if (!hasRequiredAddressFields(shippingAddress)) {
+    missingFields.push('shippingAddress');
+  }
+
+  if (!hasRequiredAddressFields(billingAddress)) {
+    missingFields.push('billingAddress');
+  }
+
+  return {
+    customerName,
+    customerEmail,
+    customerPhone,
+    shippingAddress,
+    billingAddress,
+    shippingDetails: shippingDetails
+      ? {
+          name: shippingDetails.name?.trim() || null,
+          phone: shippingDetails.phone?.trim() || null,
+          address: shippingAddress,
+        }
+      : null,
+    missingFields,
+  };
+}
+
 function timestampFromStripe(created: number | null | undefined) {
   return created ? new Date(created * 1000) : FieldValue.serverTimestamp();
 }
@@ -272,6 +353,30 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancel`,
       client_reference_id: userId ?? undefined,
+      customer_creation: 'always',
+      billing_address_collection: 'required',
+      phone_number_collection: {
+        enabled: true,
+      },
+      shipping_address_collection: {
+        allowed_countries: [...ALLOWED_SHIPPING_COUNTRIES],
+      },
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: 'fixed_amount',
+            fixed_amount: {
+              amount: 0,
+              currency: CURRENCY,
+            },
+            display_name: 'Standard shipping',
+            delivery_estimate: {
+              minimum: { unit: 'business_day', value: 5 },
+              maximum: { unit: 'business_day', value: 10 },
+            },
+          },
+        },
+      ],
       metadata: {
         userId: userId ?? '',
         source: 'online-shopping-cart',
@@ -307,11 +412,15 @@ async function lineItemToOrderItem(lineItem: Stripe.LineItem) {
   };
 }
 
-export async function createOrderFromCheckoutSession(session: Stripe.Checkout.Session) {
-  if (!session.id) {
+export async function createOrderFromCheckoutSession(sessionReference: Pick<Stripe.Checkout.Session, 'id'>) {
+  if (!sessionReference.id) {
     throw new Error('Stripe session id is required to create an order.');
   }
 
+  const stripe = getStripeClient();
+  const session = await stripe.checkout.sessions.retrieve(sessionReference.id, {
+    expand: ['payment_intent'],
+  });
   const db = await getAdminFirestore();
   const existingOrder = await db.collection('orders').where('stripeSessionId', '==', session.id).limit(1).get();
 
@@ -319,7 +428,17 @@ export async function createOrderFromCheckoutSession(session: Stripe.Checkout.Se
     return { created: false, orderId: existingOrder.docs[0].id };
   }
 
-  const stripe = getStripeClient();
+  const requiredCustomerDetails = getRequiredCustomerDetails(session);
+
+  if (requiredCustomerDetails.missingFields.length > 0) {
+    console.error('Stripe Checkout Session is missing required customer or shipping details; order was not created.', {
+      stripeSessionId: session.id,
+      missingFields: requiredCustomerDetails.missingFields,
+    });
+
+    return { created: false, orderId: null, skipped: true, reason: 'missing_required_customer_or_shipping_details' };
+  }
+
   const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
     limit: 100,
     expand: ['data.price.product'],
@@ -330,14 +449,20 @@ export async function createOrderFromCheckoutSession(session: Stripe.Checkout.Se
 
   await orderRef.create({
     userId: session.client_reference_id || session.metadata?.userId || null,
-    customerEmail: getSessionEmail(session),
+    customerName: requiredCustomerDetails.customerName,
+    customerEmail: requiredCustomerDetails.customerEmail,
+    customerPhone: requiredCustomerDetails.customerPhone,
+    shippingAddress: requiredCustomerDetails.shippingAddress,
+    billingAddress: requiredCustomerDetails.billingAddress,
+    shippingCost: session.total_details?.amount_shipping ?? 0,
+    shippingDetails: requiredCustomerDetails.shippingDetails,
     items,
     subtotal: session.amount_subtotal ?? items.reduce((total, item) => total + item.subtotal, 0),
     total: session.amount_total ?? items.reduce((total, item) => total + item.total, 0),
     currency: session.currency ?? CURRENCY,
     paymentStatus: session.payment_status,
     stripeSessionId: session.id,
-    stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+    stripePaymentIntentId: getStripePaymentIntentId(session),
     createdAt,
   });
 
