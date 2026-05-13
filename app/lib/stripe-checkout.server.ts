@@ -2,10 +2,10 @@ import Stripe from 'stripe';
 import { FieldValue, getAdminFirestore } from './firebase-admin.server';
 import { generateCombinationKey } from './pricing/utils';
 import type { ProductPricingState } from './pricing/types';
+import { ALLOWED_SHIPPING_COUNTRIES } from './shipping-countries';
 
 const CURRENCY = 'usd';
 const MAX_CHECKOUT_QUANTITY = 99;
-const ALLOWED_SHIPPING_COUNTRIES = ['US', 'CA', 'GB', 'TR'] as const;
 
 type FirestoreTimestamp = { toMillis: () => number };
 
@@ -360,6 +360,11 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
       },
       shipping_address_collection: {
         allowed_countries: [...ALLOWED_SHIPPING_COUNTRIES],
+      },
+      custom_text: {
+        shipping_address: {
+          message: 'Enter the delivery address, phone number, and all shipment details for this order here.',
+        },
       },
       shipping_options: [
         {

@@ -23,6 +23,7 @@ declare module 'stripe' {
         shipping_address_collection?: {
           allowed_countries: string[];
         };
+        custom_text?: SessionCreateParams.CustomText;
         shipping_options?: SessionCreateParams.ShippingOption[];
         metadata?: Record<string, string>;
       };
@@ -39,6 +40,12 @@ declare module 'stripe' {
               images?: string[];
               metadata?: Record<string, string>;
             };
+          };
+        };
+
+        type CustomText = {
+          shipping_address?: {
+            message: string;
           };
         };
 
