@@ -5,7 +5,7 @@
 }
 
 .orders-shell {
-  width: min(920px, calc(100% - 2rem));
+  width: min(1080px, calc(100% - 2rem));
   margin: 0 auto;
   padding: 2.5rem 0 4rem;
 }
@@ -41,8 +41,8 @@
 
 .orders-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.55rem 0.45rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
 }
 
 .order-card {
@@ -68,8 +68,8 @@
 .order-card__images {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.2rem;
-  aspect-ratio: 1 / 1;
+  gap: 0.25rem;
+  aspect-ratio: 4 / 3;
   background: #efe7df;
 }
 
@@ -86,12 +86,12 @@
 
 .order-card__body {
   display: grid;
-  gap: 0.55rem;
-  padding: 0.75rem 0;
+  gap: 1rem;
+  padding: 1rem 1.05rem 1.1rem;
 }
 
 .order-card__id {
-  margin: 0;
+  margin: 0 0 0.45rem;
   color: #6f625b;
   font-size: 0.78rem;
   font-weight: 800;
@@ -111,7 +111,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem 0.75rem;
 }
 
 .status-pill {
@@ -147,25 +147,19 @@
   font-size: 0.82rem;
 }
 
-@media (max-width: 960px) {
-  .orders-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .orders-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .orders-state {
   padding: 2rem;
+  margin-bottom: 1rem;
   background: #fff;
   border: 1px solid #eadfd7;
   border-radius: 1rem;
   color: #5f5149;
   text-align: center;
+}
+
+.orders-state--inline {
+  padding: 0.85rem 1rem;
+  text-align: left;
 }
 
 .order-detail-grid {
@@ -272,6 +266,14 @@
 }
 
 @media (max-width: 760px) {
+  .order-card {
+    border-radius: 0.95rem;
+  }
+
+  .order-card__body {
+    padding: 0.95rem;
+  }
+
   .orders-header {
     align-items: flex-start;
     flex-direction: column;

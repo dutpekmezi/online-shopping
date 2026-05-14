@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import type { Route } from "./+types/orders";
@@ -6,10 +6,14 @@ import { AuthGuard } from "~/components/auth/AuthGuard";
 import { NavBar } from "~/components/NavBar/NavBar";
 import { useAuth } from "~/hooks/useAuth";
 import { db } from "~/lib/firebase.client";
+import { fetchProductsByIds, type Product } from "~/lib/products";
 import {
   formatOrderCurrency,
   formatOrderDate,
   getOrderItemImage,
+  getOrderItemProduct,
+  getUniqueOrderProductIds,
+  buildOrderProductMap,
   normalizeOrder,
   sortOrdersByCreatedAtDesc,
   type OrderRecord,
@@ -35,6 +39,9 @@ function OrdersContent() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [productsById, setProductsById] = useState<Map<string, Product>>(new Map());
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [productsErrorMessage, setProductsErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -77,6 +84,49 @@ function OrdersContent() {
     };
   }, [isAdmin, user]);
 
+  const visibleProductIds = useMemo(() => getUniqueOrderProductIds(orders), [orders]);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    async function loadProducts() {
+      if (visibleProductIds.length === 0) {
+        setProductsById(new Map());
+        setProductsErrorMessage(null);
+        setIsLoadingProducts(false);
+        return;
+      }
+
+      setIsLoadingProducts(true);
+      setProductsErrorMessage(null);
+
+      try {
+        const products = await fetchProductsByIds(visibleProductIds);
+
+        if (isSubscribed) {
+          setProductsById(buildOrderProductMap(products));
+        }
+      } catch (error) {
+        console.error("Order product images could not be loaded.", error);
+
+        if (isSubscribed) {
+          setProductsById(new Map());
+          setProductsErrorMessage("Some product images could not be loaded. Placeholder images are shown instead.");
+        }
+      } finally {
+        if (isSubscribed) {
+          setIsLoadingProducts(false);
+        }
+      }
+    }
+
+    loadProducts();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [visibleProductIds]);
+
   return (
     <div className="orders-page">
       <NavBar />
@@ -95,13 +145,15 @@ function OrdersContent() {
 
         {isLoading ? <div className="orders-state">Loading orders...</div> : null}
         {errorMessage ? <div className="orders-state">{errorMessage}</div> : null}
+        {isLoadingProducts && !errorMessage ? <div className="orders-state orders-state--inline">Loading product images...</div> : null}
+        {productsErrorMessage && !errorMessage ? <div className="orders-state orders-state--inline">{productsErrorMessage}</div> : null}
         {!isLoading && !errorMessage && orders.length === 0 ? (
           <div className="orders-state">No completed orders were found.</div>
         ) : null}
         {!isLoading && !errorMessage && orders.length > 0 ? (
           <div className="orders-grid">
             {orders.map((order) => (
-              <OrderCard order={order} key={order.id} />
+              <OrderCard order={order} productsById={productsById} key={order.id} />
             ))}
           </div>
         ) : null}
@@ -110,7 +162,7 @@ function OrdersContent() {
   );
 }
 
-function OrderCard({ order }: { order: OrderRecord }) {
+function OrderCard({ order, productsById }: { order: OrderRecord; productsById: Map<string, Product> }) {
   const items = order.items?.length ? order.items : [{}];
   const visibleItems = items.slice(0, 4);
   const currency = order.currency || "usd";
@@ -118,15 +170,22 @@ function OrderCard({ order }: { order: OrderRecord }) {
   return (
     <Link to={`/orders/${order.id}`} className="order-card" aria-label={`View order ${order.id}`}>
       <div className={`order-card__images${visibleItems.length === 1 ? " order-card__images--single" : ""}`}>
-        {visibleItems.map((item, index) => (
-          <img
-            src={getOrderItemImage(item)}
-            alt="Ordered product"
-            className="order-card__image"
-            key={`${order.id}-${item.productId || index}`}
-            loading="lazy"
-          />
-        ))}
+        {visibleItems.map((item, index) => {
+          const product = getOrderItemProduct(item, productsById);
+
+          return (
+            <img
+              src={getOrderItemImage(product)}
+              alt={product?.title || "Ordered product"}
+              className="order-card__image"
+              key={`${order.id}-${item.productId || index}`}
+              loading="lazy"
+              onError={(event) => {
+                event.currentTarget.src = getOrderItemImage(null);
+              }}
+            />
+          );
+        })}
       </div>
       <div className="order-card__body">
         <div>
