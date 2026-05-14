@@ -7,11 +7,17 @@ export type HomeCategoryContent = {
   imageUrl: string;
 };
 
+export type HomeButtonContent = {
+  id: string;
+  title: string;
+};
+
 export type HomeContent = {
   heroImageUrl: string;
   heroEyebrow: string;
   heroTitle: string;
   heroDescription: string;
+  heroButtons: HomeButtonContent[];
   categories: HomeCategoryContent[];
   sectionImages: string[];
   updatedAt?: unknown;
@@ -56,6 +62,10 @@ export const defaultHomeContent: HomeContent = {
   heroTitle: 'Providing Live Edge Wood Slabs & Furniture',
   heroDescription:
     'Find a unique live edge wood slab perfect for your live edge table, bar top, mantle, charcuterie board, or any other live edge project.',
+  heroButtons: [
+    { id: 'table-slabs', title: 'Table Slabs' },
+    { id: 'custom-table-tops', title: 'Custom Table Tops' },
+  ],
   categories: defaultHomeCategories,
   sectionImages: defaultHomeCategories.map((category) => category.imageUrl),
 };
@@ -104,6 +114,20 @@ export function normalizeHomeContent(value: unknown): HomeContent {
   const hasSavedCategories = Array.isArray(data.categories);
   const rawCategories = hasSavedCategories ? (data.categories as unknown[]) : [];
   const sectionImages = Array.isArray(data.sectionImages) ? data.sectionImages : [];
+  const rawHeroButtons = Array.isArray(data.heroButtons) ? data.heroButtons : [];
+  const heroButtons: HomeButtonContent[] = rawHeroButtons.length > 0
+    ? Array.from({ length: 2 }, (_item, index) => rawHeroButtons[index]).map((rawButton, index) => {
+        const button = rawButton && typeof rawButton === 'object' ? (rawButton as Record<string, unknown>) : {};
+        const fallback = defaultHomeContent.heroButtons[index] ?? defaultHomeContent.heroButtons[0];
+        const title = getLegacyStringField(button, ['title'], fallback.title);
+
+        return {
+          id: getLegacyStringField(button, ['id'], title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback.id),
+          title,
+        } satisfies HomeButtonContent;
+      })
+    : defaultHomeContent.heroButtons;
+
   const categories: HomeCategoryContent[] = hasSavedCategories
     ? rawCategories.map((rawCategory, index) => {
         const category = rawCategory && typeof rawCategory === 'object' ? (rawCategory as Record<string, unknown>) : {};
@@ -130,6 +154,7 @@ export function normalizeHomeContent(value: unknown): HomeContent {
     heroEyebrow: toStringField(data.heroEyebrow, defaultHomeContent.heroEyebrow),
     heroTitle: toStringField(data.heroTitle, defaultHomeContent.heroTitle),
     heroDescription: toStringField(data.heroDescription, defaultHomeContent.heroDescription),
+    heroButtons,
     categories,
     sectionImages: categories.map((category) => category.imageUrl),
     updatedAt: data.updatedAt,
@@ -142,6 +167,10 @@ export function serializeHomeContent(content: HomeContent) {
     heroEyebrow: content.heroEyebrow,
     heroTitle: content.heroTitle,
     heroDescription: content.heroDescription,
+    heroButtons: content.heroButtons.map((button) => ({
+      id: button.id,
+      title: button.title,
+    })),
     sectionImages: content.categories.map((category) => category.imageUrl),
     categories: content.categories.map((category) => ({
       id: category.id,

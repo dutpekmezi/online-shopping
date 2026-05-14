@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { defaultHomeContent, resolveHomeImageUrl, type HomeContent } from '../../lib/home-content';
 import style from './MainDataSection.css?url';
 
@@ -7,7 +8,7 @@ export function links() {
 }
 
 type MainDataSectionProps = {
-  content?: Pick<HomeContent, 'heroImageUrl' | 'heroEyebrow' | 'heroTitle' | 'heroDescription'>;
+  content?: Pick<HomeContent, 'heroImageUrl' | 'heroEyebrow' | 'heroTitle' | 'heroDescription' | 'heroButtons'>;
   isLoading?: boolean;
 };
 
@@ -48,8 +49,15 @@ export function MainDataSection({ content = defaultHomeContent, isLoading = fals
             <h1 className="main-data-section__title">{content.heroTitle}</h1>
             <p className="main-data-section__description">{content.heroDescription}</p>
             <div className="main-data-section__buttons">
-              <a href="#" className="main-data-section__button">DIY LIVE EDGE SLABS</a>
-              <a href="#" className="main-data-section__button main-data-section__button--ghost">SOLID WOOD TABLES</a>
+              {content.heroButtons.slice(0, 2).map((button, index) => (
+                <Link
+                  key={`${button.id}-${index}`}
+                  to={`/shop?category=${encodeURIComponent(button.title)}`}
+                  className={`main-data-section__button${index === 1 ? ' main-data-section__button--ghost' : ''}`}
+                >
+                  {button.title}
+                </Link>
+              ))}
             </div>
           </div>
         ) : null}
