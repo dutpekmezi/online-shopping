@@ -1,6 +1,8 @@
 .category-section {
-  background: #f1f1f1;
-  padding: 3.5rem 1rem 4rem;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(182, 109, 50, 0.1), transparent 28rem),
+    linear-gradient(180deg, #f8f6f2 0%, #efede9 100%);
+  padding: clamp(3.5rem, 7vw, 6rem) 1rem clamp(4rem, 7vw, 6.5rem);
 }
 
 .category-section__container {
@@ -10,24 +12,22 @@
 
 .category-section__title {
   font-family: 'Georgia', serif;
-  font-size: clamp(2rem, 3vw, 3rem);
-  margin-bottom: 1.75rem;
-  color: #252525;
+  font-size: clamp(2.4rem, 4vw, 4.1rem);
+  font-weight: 500;
+  line-height: 1;
+  margin: 0 0 clamp(1.8rem, 3vw, 2.5rem);
+  color: #24211e;
+  letter-spacing: -0.045em;
 }
 
 .category-section__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.2rem;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: clamp(1.25rem, 3vw, 2rem);
+  max-width: 1040px;
 }
 
-@media (max-width: 960px) {
-  .category-section__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 760px) {
   .category-section__grid {
     grid-template-columns: 1fr;
   }
