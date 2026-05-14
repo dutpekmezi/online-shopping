@@ -169,11 +169,24 @@ export async function action({ request }: Route.ActionArgs) {
       : String(formData.get('heroImageUrl') ?? defaultHomeContent.heroImageUrl).trim() || defaultHomeContent.heroImageUrl;
 
     const categoryCount = getCategoryCount(formData);
-    const availableProductCategories = categoryCount > 0 ? await fetchAvailableProductCategories(adminDb) : new Set<string>();
+    const availableProductCategories = await fetchAvailableProductCategories(adminDb);
 
-    if (categoryCount > 0 && availableProductCategories.size === 0) {
+    if ((categoryCount > 0 || defaultHomeContent.heroButtons.length > 0) && availableProductCategories.size === 0) {
       return { message: 'No categories were found in Collections. Add a category to a product first.', success: false } satisfies ActionData;
     }
+
+    const heroButtons = defaultHomeContent.heroButtons.map((fallbackButton, index) => {
+      const title = String(formData.get(`heroButtonTitle-${index}`) ?? fallbackButton.title).trim();
+
+      if (!title || !availableProductCategories.has(title)) {
+        throw new Error(`Invalid hero button category: ${title || '(empty)'}`);
+      }
+
+      return {
+        id: slugify(title) || fallbackButton.id,
+        title,
+      };
+    });
 
     const categories = await Promise.all(
       Array.from({ length: categoryCount }, async (_item, index) => {
@@ -203,6 +216,7 @@ export async function action({ request }: Route.ActionArgs) {
       heroTitle: String(formData.get('heroTitle') ?? defaultHomeContent.heroTitle).trim() || defaultHomeContent.heroTitle,
       heroDescription:
         String(formData.get('heroDescription') ?? defaultHomeContent.heroDescription).trim() || defaultHomeContent.heroDescription,
+      heroButtons,
       categories,
       sectionImages: categories.map((category) => category.imageUrl),
     };
@@ -219,7 +233,10 @@ export async function action({ request }: Route.ActionArgs) {
   } catch (error) {
     console.error('Home content could not be saved.', error);
 
-    if (error instanceof Error && error.message.startsWith('Invalid home category:')) {
+    if (
+      error instanceof Error &&
+      (error.message.startsWith('Invalid home category:') || error.message.startsWith('Invalid hero button category:'))
+    ) {
       return { message: 'Category names can only be chosen from Collections categories.', success: false } satisfies ActionData;
     }
 
@@ -359,6 +376,13 @@ function EditHomeContent() {
       return;
     }
 
+    const invalidHeroButton = homeContent.heroButtons.find((button) => !collectionCategories.includes(button.title));
+
+    if (invalidHeroButton) {
+      setSubmitError(`Hero buttons can only use Collections categories: ${invalidHeroButton.title}`);
+      return;
+    }
+
     const invalidCategory = homeContent.categories.find((category) => !collectionCategories.includes(category.title));
 
     if (invalidCategory) {
@@ -433,11 +457,14 @@ function EditHomeContent() {
           <section className="edit-home-section">
             <h2>Main hero area</h2>
             <input type="hidden" name="heroImageUrl" value={homeContent.heroImageUrl} readOnly />
-            <label>
-              Choose image
-              <input type="file" accept="image/*" name="heroImageFile" onChange={handleHeroImageChange} />
-            </label>
-            <img className="edit-home-image-preview edit-home-image-preview--hero" src={homeImagePreviews.heroImageUrl ?? resolveHomeImageUrl(homeContent.heroImageUrl)} alt="Main area preview" />
+            <div className="edit-home-image-row">
+              <label className="edit-home-upload">
+                <span>Choose image</span>
+                <input type="file" accept="image/*" name="heroImageFile" onChange={handleHeroImageChange} />
+                <span className="edit-home-upload-icon" aria-hidden="true">🖼️</span>
+              </label>
+              <img className="edit-home-image-preview" src={homeImagePreviews.heroImageUrl ?? resolveHomeImageUrl(homeContent.heroImageUrl)} alt="Main area preview" />
+            </div>
             <label>
               Small heading
               <textarea
@@ -460,11 +487,50 @@ function EditHomeContent() {
               Description
               <textarea
                 name="heroDescription"
-                rows={4}
+                rows={3}
                 value={homeContent.heroDescription}
                 onChange={(event) => setHomeContent((content) => ({ ...content, heroDescription: event.target.value }))}
               />
             </label>
+
+            <div className="edit-home-subsection">
+              <div>
+                <h3>Hero buttons</h3>
+                <p className="edit-home-help-text">The two buttons under the hero title must point to categories that already exist in Collections.</p>
+              </div>
+              <div className="edit-home-button-grid">
+                {defaultHomeContent.heroButtons.map((_button, index) => {
+                  const heroButton = homeContent.heroButtons[index] ?? defaultHomeContent.heroButtons[index];
+
+                  return (
+                    <label key={`hero-button-${index}`}>
+                      Button {index + 1} category
+                      <select
+                        name={`heroButtonTitle-${index}`}
+                        value={heroButton.title}
+                        onChange={(event) => {
+                          const nextTitle = event.target.value;
+                          const nextHeroButtons = [...homeContent.heroButtons];
+                          nextHeroButtons[index] = { ...heroButton, id: slugify(nextTitle), title: nextTitle };
+                          setHomeContent((content) => ({ ...content, heroButtons: nextHeroButtons }));
+                        }}
+                      >
+                        {!collectionCategories.includes(heroButton.title) ? (
+                          <option value={heroButton.title} disabled>
+                            Not available: {heroButton.title}
+                          </option>
+                        ) : null}
+                        {collectionCategories.map((collectionCategory) => (
+                          <option key={collectionCategory} value={collectionCategory}>
+                            {collectionCategory}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           </section>
 
           <section className="edit-home-section">
@@ -530,11 +596,14 @@ function EditHomeContent() {
                   </select>
                 </label>
                 <input type="hidden" name={`categoryImageUrl-${index}`} value={category.imageUrl} readOnly />
-                <label>
-                  Choose category image {index + 1}
-                  <input type="file" accept="image/*" name={`categoryImageFile-${index}`} onChange={(event) => handleCategoryImageChange(event, index)} />
-                </label>
-                <img className="edit-home-image-preview" src={homeImagePreviews.categories[index] ?? resolveHomeImageUrl(category.imageUrl)} alt={`${category.title} preview`} />
+                <div className="edit-home-image-row">
+                  <label className="edit-home-upload">
+                    <span>Choose category image {index + 1}</span>
+                    <input type="file" accept="image/*" name={`categoryImageFile-${index}`} onChange={(event) => handleCategoryImageChange(event, index)} />
+                    <span className="edit-home-upload-icon" aria-hidden="true">🖼️</span>
+                  </label>
+                  <img className="edit-home-image-preview" src={homeImagePreviews.categories[index] ?? resolveHomeImageUrl(category.imageUrl)} alt={`${category.title} preview`} />
+                </div>
               </div>
             ))}
           </section>
