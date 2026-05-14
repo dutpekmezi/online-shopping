@@ -4,6 +4,19 @@
   gap: 0.85rem;
 }
 
+.category-card__link {
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+  text-decoration: none;
+}
+
+.category-card__link:focus-visible {
+  outline: 3px solid #b66d32;
+  outline-offset: 4px;
+}
+
 .category-card__media {
   position: relative;
   overflow: hidden;

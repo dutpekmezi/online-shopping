@@ -1,5 +1,6 @@
 import type { FC } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { defaultHomeContent, resolveHomeImageUrl } from '../../lib/home-content';
 
 type CategoryPreviewImage = {
@@ -12,9 +13,10 @@ type CategoryProps = {
   title: string;
   fallbackImageUrl?: string;
   previewImages?: CategoryPreviewImage[];
+  to?: string;
 };
 
-export const Category: FC<CategoryProps> = ({ imageUrl, title, fallbackImageUrl = defaultHomeContent.categories[0].imageUrl, previewImages = [] }) => {
+export const Category: FC<CategoryProps> = ({ imageUrl, title, fallbackImageUrl = defaultHomeContent.categories[0].imageUrl, previewImages = [], to }) => {
   const resolvedImageUrl = resolveHomeImageUrl(imageUrl);
   const resolvedFallbackImageUrl = resolveHomeImageUrl(fallbackImageUrl);
   const [displayImageUrl, setDisplayImageUrl] = useState(resolvedImageUrl);
@@ -24,8 +26,8 @@ export const Category: FC<CategoryProps> = ({ imageUrl, title, fallbackImageUrl 
     setDisplayImageUrl(resolvedImageUrl);
   }, [resolvedImageUrl]);
 
-  return (
-    <article className="category-card">
+  const cardContent = (
+    <>
       <div className="category-card__media">
         <img
           className="category-card__image"
@@ -54,6 +56,18 @@ export const Category: FC<CategoryProps> = ({ imageUrl, title, fallbackImageUrl 
         ) : null}
       </div>
       <h3 className="category-card__title">{title}</h3>
+    </>
+  );
+
+  return (
+    <article className="category-card">
+      {to ? (
+        <Link className="category-card__link" to={to} aria-label={`View ${title} products`}>
+          {cardContent}
+        </Link>
+      ) : (
+        cardContent
+      )}
     </article>
   );
 };
