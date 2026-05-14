@@ -57,9 +57,6 @@ export const Category: FC<CategoryProps> = ({ imageUrl, title, fallbackImageUrl 
       </div>
       <div className="category-card__content">
         <h3 className="category-card__title">{title}</h3>
-        <span className="category-card__arrow" aria-hidden="true">
-          →
-        </span>
       </div>
     </>
   );
