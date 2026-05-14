@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { ProductCard } from '../ProductCard/ProductCard';
 import { fetchProducts, type Product } from '../../lib/products';
 import style from './ProductCardList.css?url';
@@ -25,17 +26,33 @@ function getPreviewPrice(product: Product) {
   return product.pricingState?.basePrice ?? parsePrice(product.basePrice);
 }
 
+function normalizeCategoryName(categoryName: string) {
+  return categoryName.trim().toLocaleLowerCase();
+}
+
+function getCategoryFromSearchParams(searchParams: URLSearchParams) {
+  const category = searchParams.get('category')?.trim();
+
+  return category || 'All';
+}
+
 type ProductCardListProps = {
   archived?: boolean;
 };
 
 export function ProductCardList({ archived = false }: ProductCardListProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categorySearchParam = searchParams.get('category') ?? '';
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState(() => getCategoryFromSearchParams(searchParams));
   const [sortOrder, setSortOrder] = useState('newest');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedCategory(getCategoryFromSearchParams(searchParams));
+  }, [categorySearchParam, searchParams]);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -77,15 +94,25 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
     };
   }, [archived]);
 
-  const allCategories = useMemo(
-    () => ['All', ...new Set(products.map((product) => product.category).filter(Boolean))],
-    [products],
-  );
+  const allCategories = useMemo(() => {
+    const productCategories = [...new Set(products.map((product) => product.category).filter(Boolean))];
+
+    const hasSelectedCategory = productCategories.some(
+      (category) => normalizeCategoryName(category) === normalizeCategoryName(selectedCategory),
+    );
+
+    if (selectedCategory !== 'All' && !hasSelectedCategory) {
+      return ['All', selectedCategory, ...productCategories];
+    }
+
+    return ['All', ...productCategories];
+  }, [products, selectedCategory]);
 
   const filteredProducts = useMemo(() => {
     const searchValue = query.trim().toLowerCase();
     const nextProducts = products.filter((product) => {
-      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+      const matchesCategory =
+        selectedCategory === 'All' || normalizeCategoryName(product.category) === normalizeCategoryName(selectedCategory);
       const normalizedText = `${product.title} ${product.description} ${product.category}`.toLowerCase();
       const matchesSearch = !searchValue || normalizedText.includes(searchValue);
 
@@ -103,6 +130,20 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
     return nextProducts;
   }, [products, query, selectedCategory, sortOrder]);
 
+  function handleCategoryChange(nextCategory: string) {
+    setSelectedCategory(nextCategory);
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+
+    if (nextCategory === 'All') {
+      nextSearchParams.delete('category');
+    } else {
+      nextSearchParams.set('category', nextCategory);
+    }
+
+    setSearchParams(nextSearchParams, { replace: true });
+  }
+
   return (
     <section className="product-card-list" aria-label="Product list">
       <div className="product-card-list__toolbar">
@@ -116,7 +157,7 @@ export function ProductCardList({ archived = false }: ProductCardListProps) {
             <select
               id="product-category"
               value={selectedCategory}
-              onChange={(event) => setSelectedCategory(event.target.value)}
+              onChange={(event) => handleCategoryChange(event.target.value)}
               className="product-card-list__select"
             >
               {allCategories.map((category) => (

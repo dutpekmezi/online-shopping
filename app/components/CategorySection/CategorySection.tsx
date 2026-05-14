@@ -81,6 +81,7 @@ export function CategorySection({ categories = defaultHomeContent.categories, is
                 title={category.title}
                 fallbackImageUrl={defaultHomeContent.categories[index]?.imageUrl}
                 previewImages={categoryPreviewImages[normalizeCategoryName(category.title)]}
+                to={`/shop?category=${encodeURIComponent(category.title)}`}
               />
             ))}
           </div>
