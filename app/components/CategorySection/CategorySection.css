@@ -22,12 +22,18 @@
 
 .category-section__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(1.25rem, 3vw, 2rem);
-  max-width: 1040px;
+  max-width: 1200px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 980px) {
+  .category-section__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
   .category-section__grid {
     grid-template-columns: 1fr;
   }
