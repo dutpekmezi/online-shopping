@@ -1,10 +1,11 @@
-import { collection, doc, getDoc, getDocs, limit, query, type Timestamp, where } from 'firebase/firestore';
+import { collection, doc, documentId, getDoc, getDocs, limit, query, type Timestamp, where } from 'firebase/firestore';
 import { db } from './firebase.client';
 import type { ProductPricingState } from './pricing/types';
 
 export const PRODUCTS_COLLECTION = 'products';
 
 export type Product = {
+  documentId: string;
   productId: string;
   title: string;
   description: string;
@@ -72,6 +73,7 @@ function mapProductDocument(docSnapshot: { id: string; data: () => Record<string
   const imageUrl = toProductField(data.imageUrl);
 
   return {
+    documentId: docSnapshot.id,
     productId: toProductField(data.productId, docSnapshot.id),
     title: toProductField(data.title, 'Untitled item'),
     description: toProductField(data.description),
@@ -131,6 +133,57 @@ export async function fetchProductById(productId: string): Promise<Product | nul
   const matchingDocument = snapshot.docs[0];
 
   return matchingDocument ? mapProductDocument(matchingDocument) : null;
+}
+
+
+function chunkValues<T>(values: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+export async function fetchProductsByIds(productIds: string[]): Promise<Product[]> {
+  const uniqueProductIds = Array.from(new Set(productIds.map((productId) => productId.trim()).filter(Boolean)));
+
+  if (uniqueProductIds.length === 0) {
+    return [];
+  }
+
+  const productsCollection = collection(db, PRODUCTS_COLLECTION);
+  const productMap = new Map<string, Product>();
+  const productIdChunks = chunkValues(uniqueProductIds, 10);
+
+  const documentSnapshots = await Promise.all(
+    productIdChunks.map((productIdChunk) => getDocs(query(productsCollection, where(documentId(), 'in', productIdChunk)))),
+  );
+
+  documentSnapshots.flatMap((snapshot) => snapshot.docs).forEach((productDocument) => {
+    const product = mapProductDocument(productDocument);
+    productMap.set(product.productId, product);
+    productMap.set(product.documentId, product);
+  });
+
+  const unmatchedProductIds = uniqueProductIds.filter((productId) => !productMap.has(productId));
+
+  if (unmatchedProductIds.length > 0) {
+    const fieldSnapshots = await Promise.all(
+      chunkValues(unmatchedProductIds, 10).map((productIdChunk) =>
+        getDocs(query(productsCollection, where('productId', 'in', productIdChunk))),
+      ),
+    );
+
+    fieldSnapshots.flatMap((snapshot) => snapshot.docs).forEach((productDocument) => {
+      const product = mapProductDocument(productDocument);
+      productMap.set(product.productId, product);
+      productMap.set(product.documentId, product);
+    });
+  }
+
+  return uniqueProductIds.map((productId) => productMap.get(productId)).filter((product): product is Product => Boolean(product));
 }
 
 export async function fetchProductCategories(): Promise<string[]> {

@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
+import type { Product } from "./products";
 
 export type OrderAddress = {
   line1?: string | null;
@@ -96,9 +97,37 @@ export function toOrderDate(value: OrderRecord["createdAt"]) {
   return null;
 }
 
-export function getOrderItemImage(item: OrderItem | undefined) {
-  const imageUrl = item?.imageUrl || item?.image;
+export function getOrderItemImage(product: Product | null | undefined) {
+  const imageUrl = product?.imageUrl;
   return typeof imageUrl === "string" && imageUrl.trim() ? imageUrl : ORDER_FALLBACK_IMAGE;
+}
+
+export function getUniqueOrderProductIds(orders: OrderRecord[]) {
+  return Array.from(
+    new Set(
+      orders
+        .flatMap((order) => order.items ?? [])
+        .map((item) => item.productId)
+        .filter((productId): productId is string => typeof productId === "string" && Boolean(productId.trim()))
+        .map((productId) => productId.trim()),
+    ),
+  );
+}
+
+export function buildOrderProductMap(products: Product[]) {
+  const productMap = new Map<string, Product>();
+
+  products.forEach((product) => {
+    productMap.set(product.productId, product);
+    productMap.set(product.documentId, product);
+  });
+
+  return productMap;
+}
+
+export function getOrderItemProduct(item: OrderItem | undefined, productMap: Map<string, Product>) {
+  const productId = item?.productId?.trim();
+  return productId ? productMap.get(productId) : undefined;
 }
 
 export function getOrderItemTitle(item: OrderItem) {

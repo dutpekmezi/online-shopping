@@ -6,6 +6,7 @@ import { AuthGuard } from "~/components/auth/AuthGuard";
 import { NavBar } from "~/components/NavBar/NavBar";
 import { useAuth } from "~/hooks/useAuth";
 import { db } from "~/lib/firebase.client";
+import { fetchProductsByIds, type Product } from "~/lib/products";
 import {
   formatAddress,
   formatItemOptions,
@@ -13,7 +14,10 @@ import {
   formatOrderDate,
   formatStructuredValue,
   getOrderItemImage,
+  getOrderItemProduct,
   getOrderItemTitle,
+  getUniqueOrderProductIds,
+  buildOrderProductMap,
   normalizeOrder,
   type OrderItem,
   type OrderRecord,
@@ -40,6 +44,9 @@ function OrderDetailContent() {
   const [order, setOrder] = useState<OrderRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [productsById, setProductsById] = useState<Map<string, Product>>(new Map());
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [productsErrorMessage, setProductsErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -88,6 +95,49 @@ function OrderDetailContent() {
     };
   }, [isAdmin, orderId, user]);
 
+  useEffect(() => {
+    let isSubscribed = true;
+
+    async function loadProducts() {
+      const productIds = order ? getUniqueOrderProductIds([order]) : [];
+
+      if (productIds.length === 0) {
+        setProductsById(new Map());
+        setProductsErrorMessage(null);
+        setIsLoadingProducts(false);
+        return;
+      }
+
+      setIsLoadingProducts(true);
+      setProductsErrorMessage(null);
+
+      try {
+        const products = await fetchProductsByIds(productIds);
+
+        if (isSubscribed) {
+          setProductsById(buildOrderProductMap(products));
+        }
+      } catch (error) {
+        console.error("Order detail product images could not be loaded.", error);
+
+        if (isSubscribed) {
+          setProductsById(new Map());
+          setProductsErrorMessage("Some product images could not be loaded. Placeholder images are shown instead.");
+        }
+      } finally {
+        if (isSubscribed) {
+          setIsLoadingProducts(false);
+        }
+      }
+    }
+
+    loadProducts();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [order]);
+
   return (
     <div className="orders-page">
       <NavBar />
@@ -98,13 +148,15 @@ function OrderDetailContent() {
 
         {isLoading ? <div className="orders-state">Loading order details...</div> : null}
         {errorMessage ? <div className="orders-state">{errorMessage}</div> : null}
-        {!isLoading && !errorMessage && order ? <OrderDetail order={order} /> : null}
+        {isLoadingProducts && !errorMessage ? <div className="orders-state orders-state--inline">Loading product images...</div> : null}
+        {productsErrorMessage && !errorMessage ? <div className="orders-state orders-state--inline">{productsErrorMessage}</div> : null}
+        {!isLoading && !errorMessage && order ? <OrderDetail order={order} productsById={productsById} /> : null}
       </main>
     </div>
   );
 }
 
-function OrderDetail({ order }: { order: OrderRecord }) {
+function OrderDetail({ order, productsById }: { order: OrderRecord; productsById: Map<string, Product> }) {
   const currency = order.currency || "usd";
 
   return (
@@ -126,7 +178,7 @@ function OrderDetail({ order }: { order: OrderRecord }) {
             <h2 id="products-heading">Products</h2>
             <div className="order-products">
               {order.items?.length ? (
-                order.items.map((item, index) => <OrderProduct item={item} currency={currency} key={`${item.productId}-${index}`} />)
+                order.items.map((item, index) => <OrderProduct item={item} productsById={productsById} currency={currency} key={`${item.productId}-${index}`} />)
               ) : (
                 <p className="order-muted">No product line items were stored for this order.</p>
               )}
@@ -193,13 +245,22 @@ function OrderDetail({ order }: { order: OrderRecord }) {
   );
 }
 
-function OrderProduct({ item, currency }: { item: OrderItem; currency: string }) {
+function OrderProduct({ item, productsById, currency }: { item: OrderItem; productsById: Map<string, Product>; currency: string }) {
   const quantity = item.quantity ?? 0;
   const unitAmount = item.unitAmount ?? item.unit_amount ?? 0;
+  const product = getOrderItemProduct(item, productsById);
 
   return (
     <article className="order-product">
-      <img src={getOrderItemImage(item)} alt={getOrderItemTitle(item)} className="order-product__image" />
+      <img
+        src={getOrderItemImage(product)}
+        alt={product?.title || getOrderItemTitle(item)}
+        className="order-product__image"
+        loading="lazy"
+        onError={(event) => {
+          event.currentTarget.src = getOrderItemImage(null);
+        }}
+      />
       <div>
         <p className="order-product__title">{getOrderItemTitle(item)}</p>
         <div className="order-product__meta">
