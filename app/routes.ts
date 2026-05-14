@@ -22,6 +22,8 @@ export default [
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("account", "routes/account.tsx"),
+  route("orders", "routes/orders.tsx"),
+  route("orders/:orderId", "routes/order-detail.tsx"),
   route("admin", "routes/admin.tsx"),
   route("unauthorized", "routes/unauthorized.tsx"),
 ] satisfies RouteConfig;
