@@ -113,6 +113,7 @@ export default function Cart() {
     setIsCheckingOut(true);
 
     try {
+      const addressMode = selectedAddressId === 'new' ? 'new' : 'saved';
       const authToken = user ? await user.getIdToken() : null;
       const response = await fetch('/checkout/create-session', {
         method: 'POST',
@@ -126,7 +127,8 @@ export default function Cart() {
             quantity: item.quantity,
             selectedOptionIds: item.selectedOptionIds ?? [],
           })),
-          selectedAddressId: selectedAddressId !== 'new' ? selectedAddressId : null,
+          addressMode,
+          selectedAddressId: addressMode === 'saved' ? selectedAddressId : null,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
@@ -225,7 +227,7 @@ export default function Cart() {
                 isLoading={isLoadingAddresses}
                 onSelect={setSelectedAddressId}
               />
-              <p className="cart-page__note">Taxes, discounts, and shipping are calculated at checkout. Stripe will still require delivery details before payment.</p>
+              <p className="cart-page__note">Taxes, discounts, and shipping are calculated at checkout. Stripe will only ask for a delivery address when you choose to use a new address.</p>
               {checkoutError ? <p className="cart-page__error">{checkoutError}</p> : null}
               <button className="cart-page__checkout" type="button" onClick={startCheckout} disabled={isCheckingOut}>
                 {isCheckingOut ? 'Redirecting to Stripe...' : 'Checkout'}

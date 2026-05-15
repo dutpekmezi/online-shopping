@@ -8,6 +8,8 @@ const MAX_CHECKOUT_QUANTITY = 99;
 
 type FirestoreTimestamp = { toMillis: () => number };
 
+type AddressMode = 'saved' | 'new';
+
 type SelectedCheckoutAddress = {
   id: string;
   country: string;
@@ -98,11 +100,23 @@ function hasRequiredSelectedAddressFields(address: SelectedCheckoutAddress) {
   return Boolean(address.country && address.firstName && address.lastName && address.addressLine1 && address.postalCode && address.city);
 }
 
+function normalizeAddressMode(rawMode: unknown, rawSelectedAddressId: unknown): AddressMode {
+  if (rawMode === 'saved') {
+    return 'saved';
+  }
+
+  if (rawMode === 'new') {
+    return 'new';
+  }
+
+  return toOptionalString(rawSelectedAddressId) ? 'saved' : 'new';
+}
+
 async function fetchSelectedCheckoutAddress(userId: string | null, addressId: unknown) {
   const selectedAddressId = toOptionalString(addressId);
 
   if (!selectedAddressId) {
-    return null;
+    throw new CheckoutError('Choose a saved delivery address or use a new address.', 400);
   }
 
   if (!userId) {
@@ -149,6 +163,22 @@ function selectedAddressToOrderAddress(address: SelectedCheckoutAddress | null) 
     state: address.stateOrProvince || null,
     postalCode: address.postalCode,
     country: address.country,
+  };
+}
+
+function selectedAddressToOrderDeliveryAddress(address: SelectedCheckoutAddress | null) {
+  if (!address) {
+    return null;
+  }
+
+  return {
+    id: address.id,
+    firstName: address.firstName,
+    lastName: address.lastName,
+    name: [address.firstName, address.lastName].filter(Boolean).join(' ') || null,
+    phone: address.phone || null,
+    address: selectedAddressToOrderAddress(address),
+    isDefault: address.isDefault,
   };
 }
 
@@ -369,13 +399,37 @@ function hasRequiredAddressFields(address: NormalizedAddress) {
   return Boolean(address?.line1 && address.city && address.postalCode && address.country);
 }
 
-function getRequiredCustomerDetails(session: Stripe.Checkout.Session) {
+type SessionShippingDetails = { address?: Stripe.Address | null; name?: string | null; phone?: string | null };
+
+function getSessionShippingDetails(session: Stripe.Checkout.Session) {
+  const legacyShippingDetails = (session as Stripe.Checkout.Session & { shipping_details?: SessionShippingDetails | null }).shipping_details;
+
+  return session.collected_information?.shipping_details ?? legacyShippingDetails ?? null;
+}
+
+function normalizeStripeShippingDetails(session: Stripe.Checkout.Session, customerPhone: string | null) {
+  const shippingDetails = getSessionShippingDetails(session);
+  const shippingAddress = normalizeAddress(shippingDetails?.address);
+
+  return {
+    shippingDetails,
+    shippingAddress,
+    stripeShippingDetails: shippingDetails
+      ? {
+          name: shippingDetails.name?.trim() || null,
+          phone: (shippingDetails as { phone?: string | null }).phone?.trim() || customerPhone,
+          address: shippingAddress,
+        }
+      : null,
+  };
+}
+
+function getRequiredCustomerDetails(session: Stripe.Checkout.Session, addressMode: AddressMode) {
   const customerDetails = session.customer_details;
-  const shippingDetails = session.collected_information?.shipping_details;
-  const customerName = customerDetails?.name?.trim() || shippingDetails?.name?.trim() || null;
   const customerEmail = getSessionEmail(session)?.trim() || null;
   const customerPhone = customerDetails?.phone?.trim() || null;
-  const shippingAddress = normalizeAddress(shippingDetails?.address);
+  const { shippingDetails, shippingAddress, stripeShippingDetails } = normalizeStripeShippingDetails(session, customerPhone);
+  const customerName = customerDetails?.name?.trim() || shippingDetails?.name?.trim() || null;
   const billingAddress = normalizeAddress(customerDetails?.address);
   const missingFields: string[] = [];
 
@@ -391,12 +445,14 @@ function getRequiredCustomerDetails(session: Stripe.Checkout.Session) {
     missingFields.push('customerPhone');
   }
 
-  if (!shippingDetails?.name?.trim()) {
-    missingFields.push('shippingDetails.name');
-  }
+  if (addressMode === 'new') {
+    if (!shippingDetails?.name?.trim()) {
+      missingFields.push('shippingDetails.name');
+    }
 
-  if (!hasRequiredAddressFields(shippingAddress)) {
-    missingFields.push('shippingAddress');
+    if (!hasRequiredAddressFields(shippingAddress)) {
+      missingFields.push('shippingAddress');
+    }
   }
 
   if (!hasRequiredAddressFields(billingAddress)) {
@@ -409,13 +465,8 @@ function getRequiredCustomerDetails(session: Stripe.Checkout.Session) {
     customerPhone,
     shippingAddress,
     billingAddress,
-    shippingDetails: shippingDetails
-      ? {
-          name: shippingDetails.name?.trim() || null,
-          phone: customerPhone,
-          address: shippingAddress,
-        }
-      : null,
+    stripeShippingDetails,
+    shippingDetails: stripeShippingDetails,
     missingFields,
   };
 }
@@ -431,7 +482,9 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
     throw new CheckoutError('Your cart is empty.', 400);
   }
 
-  const selectedAddress = await fetchSelectedCheckoutAddress(userId, (rawPayload as { selectedAddressId?: unknown })?.selectedAddressId);
+  const payloadRecord = rawPayload as { addressMode?: unknown; selectedAddressId?: unknown };
+  const addressMode = normalizeAddressMode(payloadRecord?.addressMode, payloadRecord?.selectedAddressId);
+  const selectedAddress = addressMode === 'saved' ? await fetchSelectedCheckoutAddress(userId, payloadRecord?.selectedAddressId) : null;
   const customerEmail = await fetchCheckoutEmail(userId);
   const validatedItems = await Promise.all(cartItems.map(validateCartItem));
   const subtotal = validatedItems.reduce((total, item) => total + item.subtotal, 0);
@@ -439,7 +492,7 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
   const stripe = getStripeClient();
 
   try {
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: buildLineItems(validatedItems),
@@ -452,15 +505,24 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
       phone_number_collection: {
         enabled: true,
       },
-      shipping_address_collection: {
-        allowed_countries: ['US', 'CA', 'TR', 'GB'],
+      metadata: {
+        userId: userId ?? '',
+        source: 'online-shopping-cart',
+        addressMode,
+        selectedAddressId: selectedAddress?.id ?? '',
       },
-      custom_text: {
+    };
+
+    if (addressMode === 'new') {
+      sessionParams.shipping_address_collection = {
+        allowed_countries: ['US', 'CA', 'TR', 'GB'],
+      };
+      sessionParams.custom_text = {
         shipping_address: {
           message: 'Enter the delivery address, phone number, and all shipment details for this order here.',
         },
-      },
-      shipping_options: [
+      };
+      sessionParams.shipping_options = [
         {
           shipping_rate_data: {
             type: 'fixed_amount',
@@ -475,25 +537,22 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
             },
           },
         },
-      ],
-      metadata: {
-        userId: userId ?? '',
-        source: 'online-shopping-cart',
-        selectedAddressId: selectedAddress?.id ?? '',
-      },
-    });
-
-    if (selectedAddress) {
-      const db = await getAdminFirestore();
-      await db.collection('checkoutSessions').doc(session.id).set({
-        userId,
-        selectedAddressId: selectedAddress.id,
-        selectedShippingAddress: selectedAddress,
-        selectedShippingOrderAddress: selectedAddressToOrderAddress(selectedAddress),
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      ];
     }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    const db = await getAdminFirestore();
+    await db.collection('checkoutSessions').doc(session.id).set({
+      userId,
+      addressMode,
+      selectedAddressId: selectedAddress?.id ?? null,
+      selectedShippingAddress: selectedAddress,
+      selectedShippingOrderAddress: selectedAddressToOrderAddress(selectedAddress),
+      selectedDeliveryAddress: selectedAddressToOrderDeliveryAddress(selectedAddress),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
     return {
       sessionId: session.id,
@@ -542,9 +601,15 @@ export async function createOrderFromCheckoutSession(sessionReference: Pick<Stri
 
   const checkoutSessionSnapshot = await db.collection('checkoutSessions').doc(session.id).get();
   const checkoutSessionData = checkoutSessionSnapshot.exists ? checkoutSessionSnapshot.data() : null;
+  const addressMode = checkoutSessionData?.addressMode === 'saved' || session.metadata?.addressMode === 'saved' ? 'saved' : 'new';
   const selectedShippingAddress = checkoutSessionData?.selectedShippingAddress ?? null;
   const selectedShippingOrderAddress = checkoutSessionData?.selectedShippingOrderAddress ?? null;
-  const requiredCustomerDetails = getRequiredCustomerDetails(session);
+  const selectedDeliveryAddress = checkoutSessionData?.selectedDeliveryAddress ?? selectedAddressToOrderDeliveryAddress(selectedShippingAddress);
+  const requiredCustomerDetails = getRequiredCustomerDetails(session, addressMode);
+
+  if (addressMode === 'saved' && !selectedShippingOrderAddress) {
+    requiredCustomerDetails.missingFields.push('selectedDeliveryAddress');
+  }
 
   if (requiredCustomerDetails.missingFields.length > 0) {
     console.error('Stripe Checkout Session is missing required customer or shipping details; order was not created.', {
@@ -568,10 +633,13 @@ export async function createOrderFromCheckoutSession(sessionReference: Pick<Stri
     customerName: requiredCustomerDetails.customerName,
     customerEmail: requiredCustomerDetails.customerEmail,
     customerPhone: requiredCustomerDetails.customerPhone,
-    shippingAddress: requiredCustomerDetails.shippingAddress,
+    shippingAddress: addressMode === 'saved' ? selectedShippingOrderAddress : requiredCustomerDetails.shippingAddress,
+    selectedDeliveryAddress,
+    stripeShippingDetails: requiredCustomerDetails.stripeShippingDetails,
+    deliveryAddressSource: addressMode === 'saved' ? 'saved' : 'stripe',
     selectedShippingAddress,
     selectedShippingOrderAddress,
-    selectedAddressId: session.metadata?.selectedAddressId || null,
+    selectedAddressId: session.metadata?.selectedAddressId || checkoutSessionData?.selectedAddressId || null,
     billingAddress: requiredCustomerDetails.billingAddress,
     shippingCost: session.total_details?.amount_shipping ?? 0,
     shippingDetails: requiredCustomerDetails.shippingDetails,

@@ -26,6 +26,7 @@ declare module 'stripe' {
         custom_text?: SessionCreateParams.CustomText;
         shipping_options?: SessionCreateParams.ShippingOption[];
         metadata?: Record<string, string>;
+        customer_email?: string;
       };
 
       namespace SessionCreateParams {
@@ -91,6 +92,9 @@ declare module 'stripe' {
         customer_details?: CustomerDetails | null;
         customer_email?: string | null;
         shipping_details?: ShippingDetails | null;
+        collected_information?: {
+          shipping_details?: ShippingDetails | null;
+        } | null;
         client_reference_id?: string | null;
         metadata?: Record<string, string> | null;
         amount_subtotal?: number | null;

@@ -4,11 +4,23 @@ import type { Product } from "./products";
 export type OrderAddress = {
   line1?: string | null;
   line2?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
   state?: string | null;
+  stateOrProvince?: string | null;
   postalCode?: string | null;
   postal_code?: string | null;
   country?: string | null;
+};
+
+export type OrderDeliveryDetails = {
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  address?: OrderAddress | string | null;
+  [key: string]: unknown;
 };
 
 export type OrderItem = {
@@ -38,6 +50,9 @@ export type OrderRecord = {
   customerEmail?: string | null;
   customerPhone?: string | null;
   shippingAddress?: OrderAddress | string | null;
+  selectedDeliveryAddress?: OrderDeliveryDetails | OrderAddress | string | null;
+  stripeShippingDetails?: OrderDeliveryDetails | OrderAddress | string | null;
+  deliveryAddressSource?: "saved" | "stripe" | string | null;
   billingAddress?: OrderAddress | string | null;
   shippingMethod?: string | null;
   shippingCost?: number | null;
@@ -150,7 +165,7 @@ export function sortOrdersByCreatedAtDesc(orders: OrderRecord[]) {
   });
 }
 
-export function formatAddress(address: OrderRecord["shippingAddress"]) {
+export function formatAddress(address: OrderRecord["shippingAddress"] | OrderDeliveryDetails | OrderRecord["stripeShippingDetails"]): string {
   if (!address) {
     return "Not available";
   }
@@ -159,10 +174,20 @@ export function formatAddress(address: OrderRecord["shippingAddress"]) {
     return address;
   }
 
+  if ("address" in address && address.address) {
+    const formattedNestedAddress: string = formatAddress(address.address as OrderAddress | string);
+    const contactName = [address.name, [address.firstName, address.lastName].filter(Boolean).join(" ")].find((value) => typeof value === "string" && value.trim());
+    return [contactName, address.phone, formattedNestedAddress !== "Not available" ? formattedNestedAddress : null].filter(Boolean).join("\n") || "Not available";
+  }
+
   const postalCode = address.postalCode || address.postal_code;
-  const cityLine = [address.city, address.state, postalCode].filter(Boolean).join(", ");
-  return [address.line1, address.line2, cityLine, address.country].filter(Boolean).join("\n") || "Not available";
+  const state = address.state || address.stateOrProvince;
+  const line1 = address.line1 || address.addressLine1;
+  const line2 = address.line2 || address.addressLine2;
+  const cityLine = [address.city, state, postalCode].filter(Boolean).join(", ");
+  return [line1, line2, cityLine, address.country].filter(Boolean).join("\n") || "Not available";
 }
+
 
 export function formatStructuredValue(value: unknown): string {
   if (value == null || value === "") {
@@ -200,6 +225,35 @@ export function formatItemOptions(item: OrderItem) {
   }
 
   return item.selectedOptionIds?.length ? item.selectedOptionIds.join(", ") : "None";
+}
+
+export function getDeliveryAddressRows(order: OrderRecord): Array<[string, string]> {
+  const rows: Array<[string, string]> = [["Shipping method", order.shippingMethod || "Not available"]];
+  const hasSelectedDeliveryAddress = Boolean(order.selectedDeliveryAddress);
+  const hasStripeShippingDetails = Boolean(order.stripeShippingDetails);
+
+  if (hasSelectedDeliveryAddress) {
+    rows.push(["Selected saved delivery address", formatAddress(order.selectedDeliveryAddress)]);
+  }
+
+  if (hasStripeShippingDetails) {
+    rows.push(["Stripe Checkout delivery address", formatAddress(order.stripeShippingDetails)]);
+  }
+
+  if (!hasSelectedDeliveryAddress && !hasStripeShippingDetails) {
+    rows.push([
+      order.deliveryAddressSource === "saved" ? "Selected saved delivery address" : "Stripe Checkout delivery address",
+      formatAddress(order.shippingAddress),
+    ]);
+    rows.push(["Shipping details", formatStructuredValue(order.shippingDetails)]);
+  }
+
+  rows.push([
+    "Delivery address source",
+    order.deliveryAddressSource === "saved" ? "Saved address" : order.deliveryAddressSource === "stripe" ? "Stripe Checkout" : "Not available",
+  ]);
+
+  return rows;
 }
 
 function humanizeKey(key: string) {
