@@ -209,6 +209,7 @@
   margin: 0;
   color: #29211d;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .order-products {

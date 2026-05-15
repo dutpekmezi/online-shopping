@@ -9,10 +9,10 @@ import { db } from "~/lib/firebase.client";
 import { fetchProductsByIds, type Product } from "~/lib/products";
 import {
   formatAddress,
+  getDeliveryAddressRows,
   formatItemOptions,
   formatOrderCurrency,
   formatOrderDate,
-  formatStructuredValue,
   getOrderItemImage,
   getOrderItemProduct,
   getOrderItemTitle,
@@ -187,13 +187,7 @@ function OrderDetail({ order, productsById }: { order: OrderRecord; productsById
 
           <section className="order-section" aria-labelledby="delivery-heading">
             <h2 id="delivery-heading">Delivery address</h2>
-            <DefinitionList
-              rows={[
-                ["Shipping method", order.shippingMethod || "Not available"],
-                ["Shipping address", formatAddress(order.shippingAddress)],
-                ["Shipping details", formatStructuredValue(order.shippingDetails)],
-              ]}
-            />
+            <DefinitionList rows={getDeliveryAddressRows(order)} />
           </section>
 
           <section className="order-section" aria-labelledby="billing-heading">
