@@ -46,7 +46,7 @@ function AccountTabs() {
 }
 
 function AccountProfileContent() {
-  const { user, logout } = useAuth();
+  const { user, loading: isAuthLoading, logout } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
@@ -61,7 +61,13 @@ function AccountProfileContent() {
   const defaultAddress = useMemo(() => addresses.find((address) => address.isDefault) ?? null, [addresses]);
 
   async function loadAddresses() {
+    if (isAuthLoading) {
+      return;
+    }
+
     if (!user) {
+      setAddresses([]);
+      setIsLoadingAddresses(false);
       return;
     }
 
@@ -71,7 +77,6 @@ function AccountProfileContent() {
     try {
       setAddresses(await fetchCustomerAddresses(user.uid));
     } catch (error) {
-      console.error("Addresses could not be loaded.", error);
       setErrorMessage("Adresler yüklenemedi. Lütfen tekrar deneyin.");
     } finally {
       setIsLoadingAddresses(false);
@@ -79,9 +84,13 @@ function AccountProfileContent() {
   }
 
   useEffect(() => {
+    if (isAuthLoading) {
+      return;
+    }
+
     loadAddresses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [isAuthLoading, user?.uid]);
 
   async function saveName() {
     if (!user) {
@@ -219,11 +228,25 @@ function AccountProfileContent() {
                         Düzenle
                       </button>
                       {!address.isDefault ? (
-                        <button className="address-link-button" type="button" onClick={async () => { await setDefaultCustomerAddress(user!.uid, address.id); await loadAddresses(); }}>
+                        <button className="address-link-button" type="button" onClick={async () => {
+                          if (!user) {
+                            return;
+                          }
+
+                          await setDefaultCustomerAddress(user.uid, address.id);
+                          await loadAddresses();
+                        }}>
                           Varsayılan yap
                         </button>
                       ) : null}
-                      <button className="address-link-button" type="button" onClick={async () => { await deleteCustomerAddress(user!.uid, address.id); await loadAddresses(); }}>
+                      <button className="address-link-button" type="button" onClick={async () => {
+                        if (!user) {
+                          return;
+                        }
+
+                        await deleteCustomerAddress(user.uid, address.id);
+                        await loadAddresses();
+                      }}>
                         Sil
                       </button>
                     </div>

@@ -4,8 +4,6 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
   writeBatch,
@@ -44,6 +42,54 @@ const EMPTY_ADDRESS: CustomerAddressInput = {
   isDefault: false,
 };
 
+type FirebaseLikeError = {
+  code?: unknown;
+  message?: unknown;
+};
+
+function getAddressCollectionPath(uid: string) {
+  return `users/${uid}/addresses`;
+}
+
+function getAddressDocumentPath(uid: string, addressId: string) {
+  return `users/${uid}/addresses/${addressId}`;
+}
+
+function getTimestampMillis(value: CustomerAddress["updatedAt"]) {
+  if (!value) {
+    return 0;
+  }
+
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return Date.parse(value) || 0;
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+
+  return 0;
+}
+
+function logAddressFirestoreError(action: string, error: unknown, attemptedPath: string, uid: string) {
+  const firebaseError = error as FirebaseLikeError;
+
+  console.error(`${action} failed.`, {
+    firebaseErrorCode: typeof firebaseError.code === "string" ? firebaseError.code : undefined,
+    firebaseErrorMessage: typeof firebaseError.message === "string" ? firebaseError.message : undefined,
+    attemptedPath,
+    currentUserUid: uid,
+  });
+}
+
 export function getEmptyAddressInput(): CustomerAddressInput {
   return { ...EMPTY_ADDRESS };
 }
@@ -53,70 +99,110 @@ export function getUserAddressesCollection(uid: string) {
 }
 
 export async function fetchCustomerAddresses(uid: string) {
-  const snapshot = await getDocs(query(getUserAddressesCollection(uid), orderBy("isDefault", "desc"), orderBy("updatedAt", "desc")));
+  const attemptedPath = getAddressCollectionPath(uid);
 
-  return snapshot.docs.map((addressDocument) => ({
-    ...getEmptyAddressInput(),
-    ...(addressDocument.data() as Omit<CustomerAddress, "id">),
-    id: addressDocument.id,
-  }));
+  try {
+    const snapshot = await getDocs(collection(db, "users", uid, "addresses"));
+
+    return snapshot.docs
+      .map((addressDocument) => ({
+        ...getEmptyAddressInput(),
+        ...(addressDocument.data() as Omit<CustomerAddress, "id">),
+        id: addressDocument.id,
+      }))
+      .sort((firstAddress, secondAddress) => {
+        if (firstAddress.isDefault !== secondAddress.isDefault) {
+          return firstAddress.isDefault ? -1 : 1;
+        }
+
+        return getTimestampMillis(secondAddress.updatedAt) - getTimestampMillis(firstAddress.updatedAt);
+      });
+  } catch (error) {
+    logAddressFirestoreError("Address read", error, attemptedPath, uid);
+    throw error;
+  }
 }
 
 export async function saveCustomerAddress(uid: string, address: CustomerAddressInput, addressId?: string) {
-  const batch = writeBatch(db);
-  const addressesRef = getUserAddressesCollection(uid);
+  const addressesRef = collection(db, "users", uid, "addresses");
+  const attemptedPath = addressId ? getAddressDocumentPath(uid, addressId) : getAddressCollectionPath(uid);
 
-  if (address.isDefault) {
-    const existingAddresses = await getDocs(addressesRef);
-    existingAddresses.docs.forEach((addressDocument) => {
-      if (addressDocument.id !== addressId) {
-        batch.update(addressDocument.ref, { isDefault: false, updatedAt: serverTimestamp() });
+  try {
+    if (addressId) {
+      const batch = writeBatch(db);
+
+      if (address.isDefault) {
+        const existingAddresses = await getDocs(addressesRef);
+        existingAddresses.docs.forEach((addressDocument) => {
+          if (addressDocument.id !== addressId) {
+            batch.update(addressDocument.ref, { isDefault: false, updatedAt: serverTimestamp() });
+          }
+        });
       }
-    });
-  }
 
-  if (addressId) {
-    batch.update(doc(db, "users", uid, "addresses", addressId), {
+      batch.update(doc(db, "users", uid, "addresses", addressId), {
+        ...address,
+        updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+      return addressId;
+    }
+
+    const existingAddresses = await getDocs(addressesRef);
+    const shouldUseAsDefault = address.isDefault || existingAddresses.empty;
+    const newAddressRef = await addDoc(collection(db, "users", uid, "addresses"), {
       ...address,
+      isDefault: shouldUseAsDefault,
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    await batch.commit();
-    return addressId;
-  }
 
-  if (!address.isDefault) {
-    const existingAddresses = await getDocs(addressesRef);
-    if (existingAddresses.empty) {
-      address = { ...address, isDefault: true };
+    if (shouldUseAsDefault && !existingAddresses.empty) {
+      const batch = writeBatch(db);
+
+      existingAddresses.docs.forEach((addressDocument) => {
+        batch.update(addressDocument.ref, { isDefault: false, updatedAt: serverTimestamp() });
+      });
+      await batch.commit();
     }
+
+    return newAddressRef.id;
+  } catch (error) {
+    logAddressFirestoreError("Address save", error, attemptedPath, uid);
+    throw error;
   }
-
-  const newAddressRef = await addDoc(addressesRef, {
-    ...address,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  await batch.commit();
-
-  return newAddressRef.id;
 }
 
 export async function deleteCustomerAddress(uid: string, addressId: string) {
-  await deleteDoc(doc(db, "users", uid, "addresses", addressId));
+  const attemptedPath = getAddressDocumentPath(uid, addressId);
+
+  try {
+    await deleteDoc(doc(db, "users", uid, "addresses", addressId));
+  } catch (error) {
+    logAddressFirestoreError("Address delete", error, attemptedPath, uid);
+    throw error;
+  }
 }
 
 export async function setDefaultCustomerAddress(uid: string, addressId: string) {
-  const addresses = await getDocs(getUserAddressesCollection(uid));
-  const batch = writeBatch(db);
+  const attemptedPath = getAddressDocumentPath(uid, addressId);
 
-  addresses.docs.forEach((addressDocument) => {
-    batch.update(addressDocument.ref, {
-      isDefault: addressDocument.id === addressId,
-      updatedAt: serverTimestamp(),
+  try {
+    const addresses = await getDocs(collection(db, "users", uid, "addresses"));
+    const batch = writeBatch(db);
+
+    addresses.docs.forEach((addressDocument) => {
+      batch.update(addressDocument.ref, {
+        isDefault: addressDocument.id === addressId,
+        updatedAt: serverTimestamp(),
+      });
     });
-  });
 
-  await batch.commit();
+    await batch.commit();
+  } catch (error) {
+    logAddressFirestoreError("Default address update", error, attemptedPath, uid);
+    throw error;
+  }
 }
 
 export async function updateCustomerProfileName(uid: string, displayName: string) {
