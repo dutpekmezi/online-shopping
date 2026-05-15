@@ -8,6 +8,20 @@ const MAX_CHECKOUT_QUANTITY = 99;
 
 type FirestoreTimestamp = { toMillis: () => number };
 
+type SelectedCheckoutAddress = {
+  id: string;
+  country: string;
+  firstName: string;
+  lastName: string;
+  addressLine1: string;
+  addressLine2: string;
+  postalCode: string;
+  city: string;
+  stateOrProvince: string;
+  phone: string;
+  isDefault: boolean;
+};
+
 type CheckoutCartItemInput = {
   productId: string;
   quantity: number;
@@ -58,6 +72,84 @@ function getStripeSecretKey() {
 
 export function getStripeClient() {
   return new Stripe(getStripeSecretKey());
+}
+
+function toOptionalString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeSelectedAddress(rawData: Record<string, unknown>, id: string): SelectedCheckoutAddress {
+  return {
+    id,
+    country: toOptionalString(rawData.country),
+    firstName: toOptionalString(rawData.firstName),
+    lastName: toOptionalString(rawData.lastName),
+    addressLine1: toOptionalString(rawData.addressLine1),
+    addressLine2: toOptionalString(rawData.addressLine2),
+    postalCode: toOptionalString(rawData.postalCode),
+    city: toOptionalString(rawData.city),
+    stateOrProvince: toOptionalString(rawData.stateOrProvince),
+    phone: toOptionalString(rawData.phone),
+    isDefault: rawData.isDefault === true,
+  };
+}
+
+function hasRequiredSelectedAddressFields(address: SelectedCheckoutAddress) {
+  return Boolean(address.country && address.firstName && address.lastName && address.addressLine1 && address.postalCode && address.city);
+}
+
+async function fetchSelectedCheckoutAddress(userId: string | null, addressId: unknown) {
+  const selectedAddressId = toOptionalString(addressId);
+
+  if (!selectedAddressId) {
+    return null;
+  }
+
+  if (!userId) {
+    throw new CheckoutError('Sign in again to use a saved delivery address.', 401);
+  }
+
+  const db = await getAdminFirestore();
+  const snapshot = await db.collection('users').doc(userId).collection('addresses').doc(selectedAddressId).get();
+
+  if (!snapshot.exists) {
+    throw new CheckoutError('The selected delivery address could not be found.', 404);
+  }
+
+  const selectedAddress = normalizeSelectedAddress(snapshot.data() ?? {}, snapshot.id);
+
+  if (!hasRequiredSelectedAddressFields(selectedAddress)) {
+    throw new CheckoutError('The selected delivery address is incomplete. Please edit it or use a new address.', 422);
+  }
+
+  return selectedAddress;
+}
+
+async function fetchCheckoutEmail(userId: string | null) {
+  if (!userId) {
+    return null;
+  }
+
+  const { getAdminAuth } = await import('./firebase-admin.server');
+  const adminAuth = await getAdminAuth();
+  const user = await adminAuth.getUser(userId).catch(() => null);
+
+  return user?.email ?? null;
+}
+
+function selectedAddressToOrderAddress(address: SelectedCheckoutAddress | null) {
+  if (!address) {
+    return null;
+  }
+
+  return {
+    line1: address.addressLine1,
+    line2: address.addressLine2 || null,
+    city: address.city,
+    state: address.stateOrProvince || null,
+    postalCode: address.postalCode,
+    country: address.country,
+  };
 }
 
 function getApplicationOrigin(request: Request) {
@@ -339,6 +431,8 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
     throw new CheckoutError('Your cart is empty.', 400);
   }
 
+  const selectedAddress = await fetchSelectedCheckoutAddress(userId, (rawPayload as { selectedAddressId?: unknown })?.selectedAddressId);
+  const customerEmail = await fetchCheckoutEmail(userId);
   const validatedItems = await Promise.all(cartItems.map(validateCartItem));
   const subtotal = validatedItems.reduce((total, item) => total + item.subtotal, 0);
   const origin = getApplicationOrigin(request);
@@ -352,6 +446,7 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancel`,
       client_reference_id: userId ?? undefined,
+      customer_email: customerEmail ?? undefined,
       customer_creation: 'always',
       billing_address_collection: 'required',
       phone_number_collection: {
@@ -384,8 +479,21 @@ export async function createCheckoutSession(request: Request, rawPayload: unknow
       metadata: {
         userId: userId ?? '',
         source: 'online-shopping-cart',
+        selectedAddressId: selectedAddress?.id ?? '',
       },
     });
+
+    if (selectedAddress) {
+      const db = await getAdminFirestore();
+      await db.collection('checkoutSessions').doc(session.id).set({
+        userId,
+        selectedAddressId: selectedAddress.id,
+        selectedShippingAddress: selectedAddress,
+        selectedShippingOrderAddress: selectedAddressToOrderAddress(selectedAddress),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
 
     return {
       sessionId: session.id,
@@ -432,6 +540,10 @@ export async function createOrderFromCheckoutSession(sessionReference: Pick<Stri
     return { created: false, orderId: existingOrder.docs[0].id };
   }
 
+  const checkoutSessionSnapshot = await db.collection('checkoutSessions').doc(session.id).get();
+  const checkoutSessionData = checkoutSessionSnapshot.exists ? checkoutSessionSnapshot.data() : null;
+  const selectedShippingAddress = checkoutSessionData?.selectedShippingAddress ?? null;
+  const selectedShippingOrderAddress = checkoutSessionData?.selectedShippingOrderAddress ?? null;
   const requiredCustomerDetails = getRequiredCustomerDetails(session);
 
   if (requiredCustomerDetails.missingFields.length > 0) {
@@ -457,6 +569,9 @@ export async function createOrderFromCheckoutSession(sessionReference: Pick<Stri
     customerEmail: requiredCustomerDetails.customerEmail,
     customerPhone: requiredCustomerDetails.customerPhone,
     shippingAddress: requiredCustomerDetails.shippingAddress,
+    selectedShippingAddress,
+    selectedShippingOrderAddress,
+    selectedAddressId: session.metadata?.selectedAddressId || null,
     billingAddress: requiredCustomerDetails.billingAddress,
     shippingCost: session.total_details?.amount_shipping ?? 0,
     shippingDetails: requiredCustomerDetails.shippingDetails,
