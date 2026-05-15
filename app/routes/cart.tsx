@@ -36,7 +36,7 @@ export default function Cart() {
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('new');
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
-  const { user } = useAuth();
+  const { user, loading: isAuthLoading } = useAuth();
 
   useEffect(() => {
     setItems(readCartItems());
@@ -46,9 +46,14 @@ export default function Cart() {
     let isSubscribed = true;
 
     async function loadAddresses() {
+      if (isAuthLoading) {
+        return;
+      }
+
       if (!user) {
         setAddresses([]);
         setSelectedAddressId('new');
+        setIsLoadingAddresses(false);
         return;
       }
 
@@ -80,7 +85,7 @@ export default function Cart() {
     return () => {
       isSubscribed = false;
     };
-  }, [user]);
+  }, [isAuthLoading, user]);
 
   const subtotal = useMemo(() => getCartSubtotal(items), [items]);
 
