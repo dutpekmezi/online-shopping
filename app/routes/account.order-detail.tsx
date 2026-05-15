@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { doc, getDoc } from "firebase/firestore";
-import type { Route } from "./+types/order-detail";
+import type { Route } from "./+types/account.order-detail";
 import { AuthGuard } from "~/components/auth/AuthGuard";
 import { NavBar } from "~/components/NavBar/NavBar";
 import { useAuth } from "~/hooks/useAuth";
@@ -24,15 +24,17 @@ import {
 } from "~/lib/orders";
 import navBarStylesHref from "~/components/NavBar/NavBar.css?url";
 import ordersStylesHref from "./orders.css?url";
+import accountStylesHref from "./account.css?url";
 
 export const links: Route.LinksFunction = () => [
   { rel: "stylesheet", href: navBarStylesHref },
   { rel: "stylesheet", href: ordersStylesHref },
+  { rel: "stylesheet", href: accountStylesHref },
 ];
 
 export default function OrderDetailPage() {
   return (
-    <AuthGuard requireAdmin>
+    <AuthGuard>
       <OrderDetailContent />
     </AuthGuard>
   );
@@ -40,7 +42,7 @@ export default function OrderDetailPage() {
 
 function OrderDetailContent() {
   const { orderId } = useParams();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [order, setOrder] = useState<OrderRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -68,7 +70,7 @@ function OrderDetailContent() {
 
         const nextOrder = normalizeOrder(snapshot.data(), snapshot.id);
 
-        if (!isAdmin && nextOrder.userId !== user.uid) {
+        if (nextOrder.userId !== user.uid) {
           throw new Error("You do not have access to this order.");
         }
 
@@ -93,7 +95,7 @@ function OrderDetailContent() {
     return () => {
       isSubscribed = false;
     };
-  }, [isAdmin, orderId, user]);
+  }, [orderId, user]);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -139,11 +141,11 @@ function OrderDetailContent() {
   }, [order]);
 
   return (
-    <div className="orders-page">
+    <div className="account-page">
       <NavBar />
-      <main className="orders-shell">
-        <Link to="/orders" className="order-back-link">
-          ← Back to orders
+      <main className="account-shell">
+        <Link to="/account/orders" className="order-back-link">
+          ← Siparişlere dön
         </Link>
 
         {isLoading ? <div className="orders-state">Loading order details...</div> : null}
@@ -163,7 +165,7 @@ function OrderDetail({ order, productsById }: { order: OrderRecord; productsById
     <>
       <header className="orders-header">
         <div>
-          <p className="orders-kicker">Order detail</p>
+          <p className="orders-kicker">Sipariş detayı</p>
           <h1 className="orders-title">Order {order.id}</h1>
           <p className="orders-subtitle">Created {formatOrderDate(order.createdAt)}</p>
         </div>

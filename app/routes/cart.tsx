@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { NavBar } from '../components/NavBar/NavBar';
 import navBarStylesHref from '../components/NavBar/NavBar.css?url';
 import { getCartSubtotal, readCartItems, writeCartItems, type CartItem } from '../lib/cart';
+import { fetchCustomerAddresses, formatCustomerAddress, type CustomerAddress } from '../lib/addresses';
 import { useAuth } from '../hooks/useAuth';
 import type { Route } from './+types/cart';
 import cartStylesHref from './cart.css?url';
@@ -32,11 +33,54 @@ export default function Cart() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('new');
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
     setItems(readCartItems());
   }, []);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    async function loadAddresses() {
+      if (!user) {
+        setAddresses([]);
+        setSelectedAddressId('new');
+        return;
+      }
+
+      setIsLoadingAddresses(true);
+
+      try {
+        const savedAddresses = await fetchCustomerAddresses(user.uid);
+
+        if (isSubscribed) {
+          setAddresses(savedAddresses);
+          setSelectedAddressId(savedAddresses.find((address) => address.isDefault)?.id ?? savedAddresses[0]?.id ?? 'new');
+        }
+      } catch (error) {
+        console.error('Saved addresses could not be loaded for checkout.', error);
+
+        if (isSubscribed) {
+          setAddresses([]);
+          setSelectedAddressId('new');
+        }
+      } finally {
+        if (isSubscribed) {
+          setIsLoadingAddresses(false);
+        }
+      }
+    }
+
+    loadAddresses();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [user]);
 
   const subtotal = useMemo(() => getCartSubtotal(items), [items]);
 
@@ -77,6 +121,7 @@ export default function Cart() {
             quantity: item.quantity,
             selectedOptionIds: item.selectedOptionIds ?? [],
           })),
+          selectedAddressId: selectedAddressId !== 'new' ? selectedAddressId : null,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
@@ -169,7 +214,13 @@ export default function Cart() {
                 <strong>Estimated total</strong>
                 <span>{formatCurrency(subtotal)}</span>
               </p>
-              <p className="cart-page__note">Taxes, discounts, and shipping are calculated at checkout.</p>
+              <CheckoutAddressSelector
+                addresses={addresses}
+                selectedAddressId={selectedAddressId}
+                isLoading={isLoadingAddresses}
+                onSelect={setSelectedAddressId}
+              />
+              <p className="cart-page__note">Taxes, discounts, and shipping are calculated at checkout. Stripe will still require delivery details before payment.</p>
               {checkoutError ? <p className="cart-page__error">{checkoutError}</p> : null}
               <button className="cart-page__checkout" type="button" onClick={startCheckout} disabled={isCheckingOut}>
                 {isCheckingOut ? 'Redirecting to Stripe...' : 'Checkout'}
@@ -179,5 +230,45 @@ export default function Cart() {
         )}
       </main>
     </>
+  );
+}
+
+
+function CheckoutAddressSelector({ addresses, selectedAddressId, isLoading, onSelect }: { addresses: CustomerAddress[]; selectedAddressId: string; isLoading: boolean; onSelect: (addressId: string) => void }) {
+  if (isLoading) {
+    return <div className="cart-page__addresses">Loading saved addresses...</div>;
+  }
+
+  if (addresses.length === 0) {
+    return (
+      <div className="cart-page__addresses">
+        <h2>Delivery address</h2>
+        <p>No saved addresses found. You can enter a new delivery address in Stripe Checkout.</p>
+      </div>
+    );
+  }
+
+  return (
+    <section className="cart-page__addresses" aria-labelledby="checkout-address-heading">
+      <h2 id="checkout-address-heading">Delivery address</h2>
+      <div className="cart-page__address-options">
+        {addresses.map((address) => (
+          <label className="cart-page__address-option" key={address.id}>
+            <input type="radio" name="checkout-address" value={address.id} checked={selectedAddressId === address.id} onChange={() => onSelect(address.id)} />
+            <span>
+              <strong>{address.isDefault ? 'Default address' : `${address.firstName} ${address.lastName}`}</strong>
+              <small>{formatCustomerAddress(address)}</small>
+            </span>
+          </label>
+        ))}
+        <label className="cart-page__address-option">
+          <input type="radio" name="checkout-address" value="new" checked={selectedAddressId === 'new'} onChange={() => onSelect('new')} />
+          <span>
+            <strong>Use a new address</strong>
+            <small>Enter a different shipping address in Stripe Checkout.</small>
+          </span>
+        </label>
+      </div>
+    </section>
   );
 }

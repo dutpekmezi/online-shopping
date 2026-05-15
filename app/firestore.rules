@@ -16,6 +16,14 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /users/{uid} {
+      allow read, create, update, delete: if request.auth != null && request.auth.uid == uid;
+
+      match /addresses/{addressId} {
+        allow read, create, update, delete: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
     match /orders/{orderId} {
       allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
       allow create, update, delete: if false;
