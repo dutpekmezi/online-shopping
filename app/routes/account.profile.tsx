@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { NavLink, useNavigate } from "react-router";
+import { Link, NavLink, useNavigate } from "react-router";
 import { updateProfile } from "firebase/auth";
 import type { Route } from "./+types/account.profile";
 import { AuthGuard } from "~/components/auth/AuthGuard";
@@ -150,9 +150,9 @@ function AccountProfileContent() {
       <main className="account-shell">
         <header className="account-header">
           <div>
-            <p className="account-kicker">Online Shopping</p>
+            <p className="account-kicker">ONLINE SHOPPING</p>
             <h1 className="account-title">Hesabım</h1>
-            <p className="account-subtitle">Siparişlerinizi ve teslimat adreslerinizi yönetin.</p>
+            <p className="account-subtitle">Profilinizi ve teslimat adreslerinizi yönetin.</p>
           </div>
         </header>
         <AccountTabs />
@@ -164,7 +164,7 @@ function AccountProfileContent() {
           <div>
             <section className="account-card" aria-labelledby="profile-heading">
               <div className="account-card__header">
-                <h2 id="profile-heading">Profil</h2>
+                <div><p className="account-card__eyebrow">EDACraftAtelier</p><h2 id="profile-heading">Profil</h2></div>
               </div>
               <label className="account-field">
                 Ad soyad
@@ -181,7 +181,7 @@ function AccountProfileContent() {
 
             <section className="account-card" aria-labelledby="signout-heading">
               <div className="account-card__header">
-                <h2 id="signout-heading">Oturum</h2>
+                <div><p className="account-card__eyebrow">Güvenlik</p><h2 id="signout-heading">Oturum</h2></div>
               </div>
               <p className="account-muted">Bu cihazdan veya tüm cihazlardan güvenli şekilde çıkış yapabilirsiniz.</p>
               <div className="account-actions">
@@ -198,6 +198,7 @@ function AccountProfileContent() {
           <section className="account-card" aria-labelledby="addresses-heading">
             <div className="account-card__header">
               <div>
+                <p className="account-card__eyebrow">Teslimat</p>
                 <h2 id="addresses-heading">Adresler</h2>
                 {defaultAddress ? <p className="account-muted">Varsayılan adres: {defaultAddress.city}, {defaultAddress.country}</p> : null}
               </div>
@@ -209,12 +210,17 @@ function AccountProfileContent() {
                   setIsAddressModalOpen(true);
                 }}
               >
-                Ekle
+                + Ekle
               </button>
             </div>
 
             {isLoadingAddresses ? <div className="account-state">Adresler yükleniyor...</div> : null}
-            {!isLoadingAddresses && addresses.length === 0 ? <div className="account-state">No address added.</div> : null}
+            {!isLoadingAddresses && addresses.length === 0 ? (
+              <div className="account-empty-state">
+                <strong>Henüz adres eklenmedi</strong>
+                <span>Teslimatta kullanmak için ilk adresinizi ekleyin.</span>
+              </div>
+            ) : null}
             {!isLoadingAddresses && addresses.length > 0 ? (
               <div className="address-list">
                 {addresses.map((address) => (
@@ -224,7 +230,7 @@ function AccountProfileContent() {
                       {address.isDefault ? <span className="address-badge">Varsayılan</span> : null}
                     </div>
                     <div className="address-card__actions">
-                      <button className="address-link-button" type="button" onClick={() => { setEditingAddress(address); setIsAddressModalOpen(true); }}>
+                      <button className="address-icon-button" type="button" onClick={() => { setEditingAddress(address); setIsAddressModalOpen(true); }} aria-label="Adresi düzenle">
                         Düzenle
                       </button>
                       {!address.isDefault ? (
@@ -256,6 +262,12 @@ function AccountProfileContent() {
             ) : null}
           </section>
         </div>
+
+        <footer className="account-footer" aria-label="Hesap bağlantıları">
+          <Link to="/shop">Mağaza</Link>
+          <Link to="/shipping-info">Teslimat bilgileri</Link>
+          <Link to="/contact-us">İletişim</Link>
+        </footer>
       </main>
 
       {isAddressModalOpen ? (
@@ -290,7 +302,7 @@ function AddressModal({ address, onClose, onSave }: { address: CustomerAddress |
       <section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="address-modal-heading">
         <div className="account-modal__header">
           <h2 id="address-modal-heading">{address ? "Adresi düzenle" : "Adres ekle"}</h2>
-          <button className="address-link-button" type="button" onClick={onClose}>Kapat</button>
+          <button className="account-modal__close" type="button" onClick={onClose} aria-label="Kapat">Kapat</button>
         </div>
         {errorMessage ? <p className="account-state account-state--error">{errorMessage}</p> : null}
         <form
@@ -309,19 +321,19 @@ function AddressModal({ address, onClose, onSave }: { address: CustomerAddress |
           }}
         >
           <div className="account-modal__grid">
-            <label className="account-field">Country/region<input required value={form.country} onChange={(event) => updateField("country", event.target.value)} autoComplete="country" /></label>
-            <label className="account-field">First name<input required value={form.firstName} onChange={(event) => updateField("firstName", event.target.value)} autoComplete="given-name" /></label>
-            <label className="account-field">Last name<input required value={form.lastName} onChange={(event) => updateField("lastName", event.target.value)} autoComplete="family-name" /></label>
-            <label className="account-field">Address line 1<input required value={form.addressLine1} onChange={(event) => updateField("addressLine1", event.target.value)} autoComplete="address-line1" /></label>
-            <label className="account-field">Apartment/suite optional<input value={form.addressLine2} onChange={(event) => updateField("addressLine2", event.target.value)} autoComplete="address-line2" /></label>
-            <label className="account-field">Postal code<input required value={form.postalCode} onChange={(event) => updateField("postalCode", event.target.value)} autoComplete="postal-code" /></label>
-            <label className="account-field">City<input required value={form.city} onChange={(event) => updateField("city", event.target.value)} autoComplete="address-level2" /></label>
-            <label className="account-field">State/province<input value={form.stateOrProvince} onChange={(event) => updateField("stateOrProvince", event.target.value)} autoComplete="address-level1" /></label>
-            <label className="account-field">Phone number<input value={form.phone} onChange={(event) => updateField("phone", event.target.value)} autoComplete="tel" /></label>
+            <label className="account-field account-field--full">Ülke/bölge<input required value={form.country} onChange={(event) => updateField("country", event.target.value)} autoComplete="country" /></label>
+            <label className="account-field">Ad<input required value={form.firstName} onChange={(event) => updateField("firstName", event.target.value)} autoComplete="given-name" /></label>
+            <label className="account-field">Soyad<input required value={form.lastName} onChange={(event) => updateField("lastName", event.target.value)} autoComplete="family-name" /></label>
+            <label className="account-field account-field--full">Adres<input required value={form.addressLine1} onChange={(event) => updateField("addressLine1", event.target.value)} autoComplete="address-line1" /></label>
+            <label className="account-field account-field--full">Apartman, daire vb. (isteğe bağlı)<input value={form.addressLine2} onChange={(event) => updateField("addressLine2", event.target.value)} autoComplete="address-line2" /></label>
+            <label className="account-field">Posta kodu<input required value={form.postalCode} onChange={(event) => updateField("postalCode", event.target.value)} autoComplete="postal-code" /></label>
+            <label className="account-field">Şehir<input required value={form.city} onChange={(event) => updateField("city", event.target.value)} autoComplete="address-level2" /></label>
+            <label className="account-field">İl/İlçe<input value={form.stateOrProvince} onChange={(event) => updateField("stateOrProvince", event.target.value)} autoComplete="address-level1" /></label>
+            <label className="account-field account-field--full">Telefon<input value={form.phone} onChange={(event) => updateField("phone", event.target.value)} autoComplete="tel" /></label>
           </div>
           <label className="account-check">
             <input type="checkbox" checked={form.isDefault} onChange={(event) => updateField("isDefault", event.target.checked)} />
-            Use as default address
+            Varsayılan adres olarak kullan
           </label>
           <div className="account-actions">
             <button className="account-button" type="submit" disabled={isSaving}>{isSaving ? "Kaydediliyor..." : "Kaydet"}</button>

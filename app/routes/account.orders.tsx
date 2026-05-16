@@ -144,7 +144,7 @@ function AccountOrdersContent() {
       <main className="account-shell">
         <header className="account-header">
           <div>
-            <p className="account-kicker">Online Shopping</p>
+            <p className="account-kicker">ONLINE SHOPPING</p>
             <h1 className="account-title">Hesabım</h1>
             <p className="account-subtitle">Geçmiş siparişlerinizi görüntüleyin.</p>
           </div>
@@ -156,7 +156,13 @@ function AccountOrdersContent() {
         {isLoadingProducts && !errorMessage ? <div className="orders-state orders-state--inline">Ürün görselleri yükleniyor...</div> : null}
         {productsErrorMessage && !errorMessage ? <div className="orders-state orders-state--inline">{productsErrorMessage}</div> : null}
         {!isLoading && !errorMessage && orders.length === 0 ? (
-          <div className="orders-state">No orders yet. Visit the shop to place an order.</div>
+          <section className="orders-empty-card" aria-labelledby="empty-orders-heading">
+            <div className="orders-empty-card__icon" aria-hidden="true">ED</div>
+            <p className="orders-empty-card__eyebrow">EDACraftAtelier</p>
+            <h2 id="empty-orders-heading">Henüz sipariş yok</h2>
+            <p>Sipariş vermek için mağazaya gidin.</p>
+            <Link className="account-button" to="/shop">Mağazaya git</Link>
+          </section>
         ) : null}
         {!isLoading && !errorMessage && orders.length > 0 ? (
           <div className="orders-grid">
@@ -165,6 +171,12 @@ function AccountOrdersContent() {
             ))}
           </div>
         ) : null}
+
+        <footer className="account-footer" aria-label="Hesap bağlantıları">
+          <Link to="/shop">Mağaza</Link>
+          <Link to="/shipping-info">Teslimat bilgileri</Link>
+          <Link to="/contact-us">İletişim</Link>
+        </footer>
       </main>
     </div>
   );
@@ -176,14 +188,14 @@ function CustomerOrderCard({ order, productsById }: { order: OrderRecord; produc
   const currency = order.currency || "usd";
 
   return (
-    <Link to={`/account/orders/${order.id}`} className="order-card" aria-label={`View order ${order.id}`}>
+    <Link to={`/account/orders/${order.id}`} className="order-card" aria-label={`Sipariş detayını görüntüle ${order.id}`}>
       <div className={`order-card__images${visibleItems.length === 1 ? " order-card__images--single" : ""}`}>
         {visibleItems.map((item, index) => {
           const product = getOrderItemProduct(item, productsById);
           return (
             <img
               src={getOrderItemImage(product)}
-              alt={product?.title || "Purchased product"}
+              alt={product?.title || "Satın alınan ürün"}
               className="order-card__image"
               loading="lazy"
               key={`${item.productId ?? "item"}-${index}`}
@@ -196,7 +208,7 @@ function CustomerOrderCard({ order, productsById }: { order: OrderRecord; produc
       </div>
       <div className="order-card__body">
         <div>
-          <p className="order-card__id">Order {order.id}</p>
+          <p className="order-card__id">Sipariş #{order.id}</p>
           <p className="order-card__total">{formatOrderCurrency(order.total, currency)}</p>
         </div>
         <div className="order-card__meta">
